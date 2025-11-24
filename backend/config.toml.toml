@@ -1,0 +1,146 @@
+# =============================================================================
+# SG-SST API Configuration
+# =============================================================================
+# This is an example configuration file. Copy this to config.toml and update
+# with your actual settings. NEVER commit config.toml to version control!
+# =============================================================================
+
+[app]
+name = "SG-SST API"
+version = "1.0.0"
+description = "Sistema de Gestión de Seguridad y Salud en el Trabajo"
+debug = true  # Set to false in production
+environment = "development"  # development, staging, production
+
+[server]
+host = "0.0.0.0"
+port = 8000
+reload = true  # Auto-reload on code changes (development only)
+
+[database]
+# SQL Server connection settings
+driver = "ODBC Driver 17 for SQL Server"
+server = "localhost"
+database = "SG_SST_AgenteInteligente"
+username = "sa"
+password = "YourPasswordHere"  # CHANGE THIS!
+port = 1433
+trusted_connection = false  # Set to true for Windows Authentication
+pool_size = 5
+max_overflow = 10
+pool_timeout = 30
+pool_recycle = 3600
+
+[security]
+# JWT Settings
+secret_key = "your-super-secret-key-change-this-in-production-min-32-chars"  # CHANGE THIS!
+algorithm = "HS256"
+access_token_expire_minutes = 30
+refresh_token_expire_days = 7
+
+# Password settings
+min_password_length = 8
+require_uppercase = true
+require_lowercase = true
+require_numbers = true
+require_special_chars = true
+
+[cors]
+# CORS (Cross-Origin Resource Sharing) settings
+origins = [
+    "http://localhost:5173",  # Vue dev server
+    "http://localhost:3000",  # Alternative dev port
+    "http://localhost:80",    # Production frontend
+    "http://localhost",       # Production frontend (no port)
+]
+allow_credentials = true
+allow_methods = ["*"]
+allow_headers = ["*"]
+
+[alerts]
+# Alert generation settings (in days before expiration)
+dias_alerta_emo = 45              # Medical exam expiration alert
+dias_alerta_comite = 60           # Committee expiration alert
+dias_alerta_equipos = 30          # Equipment maintenance alert
+dias_alerta_capacitacion = 15     # Training session alert
+dias_alerta_documentos = 30       # Document review alert
+
+# Alert processing
+frecuencia_revision_horas = 6     # Hours between alert checks
+max_intentos_envio = 3            # Max send attempts for notifications
+
+[email]
+# Email notification settings (optional)
+enabled = false
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+smtp_username = "your-email@example.com"
+smtp_password = "your-app-password"
+from_email = "sgsst@digitalbulks.com"
+from_name = "SG-SST Sistema"
+use_tls = true
+
+[logging]
+# Logging configuration
+level = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+file_enabled = true
+file_path = "logs/api.log"
+file_max_bytes = 10485760  # 10MB
+file_backup_count = 5
+console_enabled = true
+
+[api]
+# API settings
+title = "SG-SST API"
+description = "API para el Sistema de Gestión de Seguridad y Salud en el Trabajo"
+version = "1.0.0"
+docs_url = "/docs"
+redoc_url = "/redoc"
+openapi_url = "/openapi.json"
+api_prefix = "/api/v1"
+
+# Rate limiting
+rate_limit_enabled = true
+rate_limit_requests = 100
+rate_limit_period = 60  # seconds
+
+[files]
+# File upload settings
+upload_enabled = true
+upload_path = "uploads"
+max_file_size = 10485760  # 10MB in bytes
+allowed_extensions = [
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+    ".jpg", ".jpeg", ".png", ".gif",
+    ".zip", ".rar"
+]
+
+[reports]
+# Report generation settings
+temp_path = "temp/reports"
+default_format = "pdf"
+logo_path = "assets/logo.png"
+company_name = "Digital Bulks S.A.S."
+
+[indicators]
+# Indicator calculation settings
+horas_trabajo_dia = 8
+dias_laborables_mes = 20
+dias_laborables_anio = 240
+factor_calculo = 200000  # Standard factor for frequency/severity indices
+
+[cache]
+# Cache settings (optional - for future use)
+enabled = false
+backend = "memory"  # memory, redis
+ttl = 300  # Time to live in seconds
+
+[features]
+# Feature flags
+intelligent_forms = true
+auto_alerts = true
+auto_tasks = true
+email_notifications = false
+sms_notifications = false
+whatsapp_notifications = false

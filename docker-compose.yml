@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sgsst-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+      - ./backend/temp:/app/temp
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - sgsst-network
+    restart: unless-stopped
+    depends_on:
+      - sqlserver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sgsst-frontend
+    ports:
+      - "80:80"
+    networks:
+      - sgsst-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # SQL Server (Optional - if you want to run SQL Server in Docker)
+  # Comment this out if you're using an external SQL Server instance
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sgsst-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong!Passw0rd  # CHANGE THIS!
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+      - ./BD:/docker-entrypoint-initdb.d:ro
+    networks:
+      - sgsst-network
+    restart: unless-stopped
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "YourStrong!Passw0rd" -Q "SELECT 1" || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  sgsst-network:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
+    driver: local
