@@ -10,7 +10,8 @@ from typing import Dict, Any, Optional, List
 from datetime import date
 import logging
 
-from api.models import get_db, call_stored_procedure, STORED_PROCEDURES
+from api.models import get_db, call_stored_procedure, STORED_PROCEDURES, AuthorizedUser
+from api.dependencies import get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,10 @@ router = APIRouter()
 
 
 @router.post("/monitor-overdue-tasks")
-def monitor_overdue_tasks(db: Session = Depends(get_db)):
+def monitor_overdue_tasks(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Monitorear_Tareas_Vencidas.
     Updates overdue tasks and returns list of vencidas tasks.
@@ -53,7 +57,8 @@ def monitor_overdue_tasks(db: Session = Depends(get_db)):
 @router.post("/generate-tasks-expiration")
 def generate_tasks_expiration(
     id_coordinador_sst: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Generar_Tareas_Vigencia.
@@ -81,7 +86,8 @@ def generate_tasks_expiration(
 def calculate_accident_indicators(
     year: int,
     month: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Calcular_Indicadores_Siniestralidad.
@@ -124,7 +130,8 @@ def calculate_accident_indicators(
 def work_plan_compliance_report(
     id_plan: Optional[int] = None,
     fecha_corte: Optional[date] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Reporte_Cumplimiento_Plan.
@@ -182,7 +189,10 @@ def work_plan_compliance_report(
 
 
 @router.get("/medical-exam-compliance")
-def medical_exam_compliance_report(db: Session = Depends(get_db)):
+def medical_exam_compliance_report(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Reporte_Cumplimiento_EMO.
     Returns medical exam compliance report.
@@ -226,7 +236,10 @@ def medical_exam_compliance_report(db: Session = Depends(get_db)):
 
 
 @router.get("/executive-report")
-def executive_report(db: Session = Depends(get_db)):
+def executive_report(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Reporte_Ejecutivo_CEO.
     Returns executive dashboard for CEO.
@@ -247,7 +260,10 @@ def executive_report(db: Session = Depends(get_db)):
 
 
 @router.post("/generate-automatic-alerts")
-def generate_automatic_alerts(db: Session = Depends(get_db)):
+def generate_automatic_alerts(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Generar_Alertas_Automaticas.
     Generates automatic alerts for upcoming deadlines.
@@ -269,7 +285,10 @@ def generate_automatic_alerts(db: Session = Depends(get_db)):
 
 
 @router.get("/pending-alerts")
-def get_pending_alerts(db: Session = Depends(get_db)):
+def get_pending_alerts(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Obtener_Alertas_Pendientes.
     Returns list of pending alerts.
@@ -296,7 +315,11 @@ def get_pending_alerts(db: Session = Depends(get_db)):
 
 
 @router.post("/mark-alerts-sent")
-def mark_alerts_sent(alert_ids: List[int], db: Session = Depends(get_db)):
+def mark_alerts_sent(
+    alert_ids: List[int],
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute SP_Marcar_Alertas_Enviadas.
     Marks alerts as sent.
@@ -326,7 +349,8 @@ def create_task_from_email(
     prioridad: str = "Media",
     tipo_tarea: str = "Solicitud CEO",
     id_conversacion: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Crear_Tarea_Desde_Correo.
@@ -379,7 +403,10 @@ def create_task_from_email(
 
 
 @router.post("/generate-expiration-alerts")
-def generate_expiration_alerts(db: Session = Depends(get_db)):
+def generate_expiration_alerts(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
     """
     Execute sp_GenerarAlertasVencimientos.
     Generates alerts for expired items (Tasks, Equipment, etc.).
@@ -407,7 +434,8 @@ def generate_expiration_alerts(db: Session = Depends(get_db)):
 def get_agent_context(
     correo_usuario: str,
     ultimas_n: int = 5,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Obtener_Contexto_Agente.
@@ -449,7 +477,8 @@ def register_agent_conversation(
     respuesta_generada: Optional[str] = None,
     acciones_realizadas: Optional[str] = None,
     confianza_respuesta: Optional[float] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Registrar_Conversacion_Agente.

@@ -9,7 +9,8 @@ from sqlalchemy import inspect, and_, or_
 from typing import List, Dict, Any, Optional
 import logging
 
-from api.models import get_db, Base
+from api.models import get_db, Base, AuthorizedUser
+from api.dependencies import get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,8 @@ def get_all(
     table_name: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Get all records from any table with pagination.
@@ -72,7 +74,8 @@ def get_all(
 def get_one(
     table_name: str,
     record_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Get a single record by ID.
@@ -102,7 +105,8 @@ def get_one(
 def create(
     table_name: str,
     data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Create a new record.
@@ -134,7 +138,8 @@ def update(
     table_name: str,
     record_id: int,
     data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Update an existing record.
@@ -175,7 +180,8 @@ def update(
 def delete(
     table_name: str,
     record_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Delete a record (or soft delete if Estado column exists).
@@ -216,7 +222,8 @@ def search(
     filters: Dict[str, Any],
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Search records with filters.
