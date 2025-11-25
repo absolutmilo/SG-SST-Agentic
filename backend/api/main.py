@@ -141,7 +141,14 @@ async def health_check():
 
 
 # Import and include routers
-from api.routers import crud, procedures
+from api.routers import crud, procedures, auth
+
+# Authentication router
+app.include_router(
+    auth.router,
+    prefix=f"{settings.api.api_prefix}/auth",
+    tags=["Authentication"]
+)
 
 # Generic CRUD router - works for ALL tables!
 app.include_router(
