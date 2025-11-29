@@ -85,19 +85,23 @@ def generate_tasks_expiration(
 @router.get("/accident-indicators/{year}")
 def calculate_accident_indicators(
     year: int,
-    month: Optional[int] = None,
+    periodo: Optional[str] = Query(None, description="Period: Q1, Q2, Q3, Q4, or specific month"),
     db: Session = Depends(get_db),
     current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
     Execute SP_Calcular_Indicadores_Siniestralidad.
     Calculates safety indicators (frequency, severity, etc.).
+    
+    Parameters:
+    - year: Year (e.g., 2025)
+    - periodo: Optional period (e.g., "Q3", "Q1", or specific month)
     """
     try:
-        if month:
+        if periodo:
             result = db.execute(
-                text("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = :year, @Mes = :month"),
-                {"year": year, "month": month}
+                text("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = :year, @Periodo = :periodo"),
+                {"year": year, "periodo": periodo}
             )
         else:
             result = db.execute(
@@ -110,7 +114,7 @@ def calculate_accident_indicators(
         if row:
             data = {
                 "anio": row[0],
-                "mes": row[1],
+                "periodo": row[1] if len(row) > 1 else None,
                 "indice_frecuencia": float(row[2]) if row[2] else 0,
                 "indice_severidad": float(row[3]) if row[3] else 0,
                 "indice_lesion_incapacitante": float(row[4]) if row[4] else 0,

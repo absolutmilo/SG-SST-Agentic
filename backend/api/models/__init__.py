@@ -129,10 +129,10 @@ try:
     GeneratedReport = Base.classes.REPORTE_GENERADO
     ManagementReview = Base.classes.REVISION_DIRECCION
     
-    logger.info("✅ All models auto-generated from database successfully!")
+    logger.info("[OK] All models auto-generated from database successfully!")
     
 except AttributeError as e:
-    logger.error(f"❌ Error loading models: {e}")
+    logger.error(f"[ERROR] Error loading models: {e}")
     logger.error("Make sure your database is created and accessible")
     raise
 

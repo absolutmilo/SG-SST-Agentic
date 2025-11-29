@@ -1,0 +1,502 @@
+{
+    "type": "folder",
+    "name": "BD",
+    "created_at": "2025-11-14T10:09:22.189249",
+    "modified_at": "2025-11-26T21:01:32.019753",
+    "children": [
+        {
+            "type": "file",
+            "name": "Claude3_SGSST_BD_Script 2.sql",
+            "created_at": "2025-11-15T20:14:43.905242",
+            "modified_at": "2025-11-16T09:39:58.129009"
+        },
+        {
+            "type": "file",
+            "name": "Claude3_SGSST_BD_Script.sql",
+            "created_at": "2025-11-14T10:09:46.544118",
+            "modified_at": "2025-11-14T10:09:46.728145"
+        },
+        {
+            "type": "folder",
+            "name": "V1",
+            "created_at": "2025-11-16T20:13:16.047791",
+            "modified_at": "2025-11-26T20:45:45.831679",
+            "children": [
+                {
+                    "type": "file",
+                    "name": "SG_SST_AgenteInteligente.Database.sql",
+                    "created_at": "2025-11-16T20:15:56.107031",
+                    "modified_at": "2025-11-16T20:15:57.404720"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ACCION_CORRECTIVA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.248679",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ACCION_MEJORA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.248679",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ALERTA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.241954",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.AMENAZA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.249676",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ASISTENCIA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.250673",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.AUDITORIA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.251729",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.AUSENTISMO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.252727",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.BRIGADA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.252727",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.CAPACITACION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.240955",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.CATALOGO_PELIGRO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.253724",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.COMITE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.236967",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.COMPETENCIA_SST.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.254721",
+                    "modified_at": "2025-11-16T20:15:57.407714"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.CONFIG_AGENTE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.254721",
+                    "modified_at": "2025-11-16T20:15:57.407714"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.CONTRATISTA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.255718",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.CONVERSACION_AGENTE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.256716",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.DOCUMENTO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.257713",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EMPLEADO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.226131",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EMPLEADO_ROL.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.258711",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EMPRESA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.258711",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ENTREGA_EPP.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.239967",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EPP.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.238990",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EQUIPO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.243948",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EVALUACION_CONTRATISTA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.259707",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EVALUACION_LEGAL.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.260705",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EVENTO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.245942",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EXAMEN_MEDICO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.238001",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.EXPOSICION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.261244",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.HALLAZGO_AUDITORIA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.246947",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.HALLAZGO_INSPECCION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.263241",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.HISTORIAL_NOTIFICACION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.272304",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.INDICADOR.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.272304",
+                    "modified_at": "2025-11-16T20:15:57.407801"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.INSPECCION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.273301",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.LOG_AGENTE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.274300",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.MANTENIMIENTO_EQUIPO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.275296",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.MIEMBRO_BRIGADA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.276293",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.MIEMBRO_COMITE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.276293",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.OBJETIVO_SST.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.277291",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.PLANTILLA_DOCUMENTO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.279679",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.PLAN_ACCION_AUDITORIA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.278288",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.PLAN_TRABAJO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.278676",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.PROGRAMA_VIGILANCIA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.280711",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.Patch-Forms.Table.sql",
+                    "created_at": "2025-11-26T20:45:45.479679",
+                    "modified_at": "2025-11-26T20:45:45.919219"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.REPORTE_GENERADO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.281670",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.REQUISITO_LEGAL.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.282844",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.RESULTADO_INDICADOR.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.282844",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.REUNION_COMITE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.283842",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.REVISION_DIRECCION.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.284839",
+                    "modified_at": "2025-11-16T20:15:57.408834"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.RIESGO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.285836",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.ROL.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.286833",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SEDE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.224451",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SEGUIMIENTO_PVE.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.287831",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SIMULACRO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.288828",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Calcular_Indicadores_Siniestralidad.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.523247",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Crear_Tarea_Desde_Correo.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.524245",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Generar_Alertas_Automaticas.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.524245",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Generar_Tareas_Vigencia.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.525243",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Marcar_Alertas_Enviadas.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.526276",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Monitorear_Tareas_Vencidas.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.526276",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Obtener_Alertas_Pendientes.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.527237",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Obtener_Contexto_Agente.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.527237",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Registrar_Conversacion_Agente.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.527978",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Reporte_Cumplimiento_EMO.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.527978",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Reporte_Cumplimiento_Plan.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.528978",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.SP_Reporte_Ejecutivo_CEO.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.528978",
+                    "modified_at": "2025-11-16T20:15:57.410829"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.TAREA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.235968",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.TRABAJADOR_CONTRATISTA.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.289825",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.USUARIOS_AUTORIZADOS.Table - copia.sql",
+                    "created_at": "2025-11-26T20:44:37.282797",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.USUARIOS_AUTORIZADOS.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.289825",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VALORACION_CONSEC.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.290823",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VALORACION_PROB.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.291821",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VERSION_DOCUMENTO.Table.sql",
+                    "created_at": "2025-11-16T20:15:56.292817",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VW_Dashboard_Alertas.View.sql",
+                    "created_at": "2025-11-16T20:15:56.243948",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VW_Empleados_Activos.View.sql",
+                    "created_at": "2025-11-16T20:15:56.234910",
+                    "modified_at": "2025-11-16T20:15:57.405719"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VW_Historial_Accidentalidad.View.sql",
+                    "created_at": "2025-11-16T20:15:56.247678",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VW_Indicadores_Tiempo_Real.View.sql",
+                    "created_at": "2025-11-16T20:15:56.246947",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.VW_Tareas_Por_Responsable.View.sql",
+                    "created_at": "2025-11-16T20:15:56.246947",
+                    "modified_at": "2025-11-16T20:15:57.406735"
+                },
+                {
+                    "type": "file",
+                    "name": "dbo.sp_GenerarAlertasVencimientos.StoredProcedure.sql",
+                    "created_at": "2025-11-16T20:15:56.526276",
+                    "modified_at": "2025-11-16T20:15:57.409833"
+                }
+            ]
+        },
+        {
+            "type": "file",
+            "name": "tree.py",
+            "created_at": "2025-11-26T21:01:31.676452",
+            "modified_at": "2025-11-26T21:06:05.301123"
+        }
+    ]
+}

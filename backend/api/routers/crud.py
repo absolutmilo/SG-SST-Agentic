@@ -56,8 +56,11 @@ def get_all(
     Model = get_model_class(table_name)
     
     try:
+        # Get primary key column for ordering (required by MSSQL for OFFSET)
+        pk_column = inspect(Model).primary_key[0]
+        
         total = db.query(Model).count()
-        items = db.query(Model).offset(skip).limit(limit).all()
+        items = db.query(Model).order_by(pk_column).offset(skip).limit(limit).all()
         
         return {
             "total": total,
@@ -234,6 +237,9 @@ def search(
     Model = get_model_class(table_name)
     
     try:
+        # Get primary key column for ordering (required by MSSQL for OFFSET)
+        pk_column = inspect(Model).primary_key[0]
+        
         query = db.query(Model)
         
         # Apply filters
@@ -242,7 +248,7 @@ def search(
                 query = query.filter(getattr(Model, key) == value)
         
         total = query.count()
-        items = query.offset(skip).limit(limit).all()
+        items = query.order_by(pk_column).offset(skip).limit(limit).all()
         
         return {
             "total": total,

@@ -6,6 +6,7 @@ import Alerts from '../views/Alerts.vue'
 import Reports from '../views/Reports.vue'
 import Employees from '../views/Employees.vue'
 import Assistant from '../views/Assistant.vue'
+import Forms from '../views/Forms.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 
 const router = createRouter({
@@ -51,6 +52,11 @@ const router = createRouter({
                     path: 'assistant',
                     name: 'assistant',
                     component: Assistant
+                },
+                {
+                    path: 'forms',
+                    name: 'forms',
+                    component: Forms
                 }
             ]
         }

@@ -11,7 +11,11 @@ export const useAuthStore = defineStore('auth', {
 
     getters: {
         isAuthenticated: (state) => !!state.token,
-        isAdmin: (state) => state.user?.Nivel_Acceso === 'CEO' || state.user?.Nivel_Acceso === 'Coordinador SST'
+        isAdmin: (state) => {
+            if (!state.user) return false
+            const nivel = state.user.nivel_acceso || state.user.Nivel_Acceso
+            return nivel === 'CEO' || nivel === 'Coordinador SST'
+        }
     },
 
     actions: {

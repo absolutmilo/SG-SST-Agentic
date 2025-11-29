@@ -46,6 +46,7 @@ const authStore = useAuthStore()
 const navItems = [
   { name: 'Dashboard', path: '/', icon: '📊' },
   { name: 'Tareas', path: '/tasks', icon: '✅' },
+  { name: 'Formularios', path: '/forms', icon: '📝' },
   { name: 'Alertas', path: '/alerts', icon: '🔔' },
   { name: 'Reportes', path: '/reports', icon: '📈' },
   { name: 'Empleados', path: '/employees', icon: '👥' },

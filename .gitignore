@@ -66,3 +66,6 @@ logs/
 # OS
 Thumbs.db
 .DS_Store
+estructura_carpetas.json
+tree.py 
+ 
