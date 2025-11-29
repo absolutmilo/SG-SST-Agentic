@@ -1,0 +1,45 @@
+# Vectorstore Configuration
+
+# Embedding Model
+embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+embedding_dimension: 384
+device: "cpu"  # or "cuda" for GPU
+
+# Vectorstore
+vectorstore_type: "faiss"
+index_path: "./vector/index"
+
+# Document Processing
+chunk_size: 1000
+chunk_overlap: 200
+
+# Supported file types
+supported_extensions:
+  - ".pdf"
+  - ".docx"
+  - ".doc"
+  - ".txt"
+  - ".md"
+
+# Document Sources
+document_sources:
+  - path: "./documents/policies"
+    type: "policy"
+    recursive: true
+  - path: "./documents/procedures"
+    type: "procedure"
+    recursive: true
+  - path: "./documents/regulations"
+    type: "regulation"
+    recursive: true
+
+# Metadata
+default_metadata:
+  language: "es"
+  domain: "sgsst"
+  country: "colombia"
+
+# Search Configuration
+default_top_k: 5
+similarity_threshold: 0.7
+rerank_enabled: false

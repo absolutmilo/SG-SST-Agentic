@@ -50,7 +50,7 @@ const navItems = [
   { name: 'Alertas', path: '/alerts', icon: '🔔' },
   { name: 'Reportes', path: '/reports', icon: '📈' },
   { name: 'Empleados', path: '/employees', icon: '👥' },
-  { name: 'Asistente IA', path: '/assistant', icon: '🤖' },
+  { name: 'Agentes IA', path: '/agentic', icon: '🤖' },
 ]
 
 const userName = computed(() => authStore.user?.NombreCompleto || 'Usuario')
