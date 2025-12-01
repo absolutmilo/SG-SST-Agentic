@@ -7,6 +7,8 @@ navigation help, and delegation to specialized agents.
 
 from typing import Dict, Any, List
 from .base_agent import BaseAgent, AgentContext, AgentStatus
+from agents.tools.assistant_tools import AssistantTools
+from agents.tools.query_tools import QueryTools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,9 @@ class AssistantAgent(BaseAgent):
             model="gpt-4",
             temperature=0.7
         )
+        self.tools = AssistantTools()
+        self.query_tools = QueryTools()
+        self.available_agents = ["risk_agent", "document_agent", "email_agent"]
     
     def get_system_prompt(self) -> str:
         return """Eres un asistente experto en sistemas de gestión de seguridad y salud en el trabajo (SG-SST) en Colombia.
@@ -134,7 +139,7 @@ Estructura tus respuestas:
                             "include_metrics": {
                                 "type": "boolean",
                                 "description": "Include performance metrics",
-                                "default": false
+                                "default": False
                             }
                         }
                     }
@@ -191,28 +196,48 @@ Estructura tus respuestas:
             # Call LLM with tools (will be implemented when API key is available)
             # response = await self._call_llm(messages, tools=self.get_tools())
             
-            # For now, return a structured placeholder
-            result = {
-                "status": "pending_api_key",
-                "message": "Assistant agent ready. Awaiting OpenAI API key configuration.",
-                "task": task,
-                "agent": self.name,
-                "capabilities": [
-                    "General SG-SST queries",
-                    "System navigation help",
-                    "Process explanations",
-                    "Agent delegation",
-                    "Contextual assistance"
-                ],
-                "available_agents": [
-                    "risk_agent - Risk assessment and management",
-                    "document_agent - Document processing and compliance",
-                    "email_agent - Email generation and notifications"
-                ]
+            # 3. Check for specific reporting requests
+            if "reporte ejecutivo" in task.lower():
+                report = await self.tools.get_executive_report()
+                return {"response": "Aquí está el reporte ejecutivo generado.", "data": report, "type": "report"}
+                
+            # 4. Try to answer using Natural Language to SQL (New Capability)
+            # Heuristic: If the question looks like a data query
+            if any(keyword in task.lower() for keyword in ["cuantos", "cuántos", "lista", "buscar", "dame", "muestrame", "muéstrame", "quien", "quién", "cual", "cuál"]):
+                self.logger.info(f"Attempting to answer via Text-to-SQL: {task}")
+                query_result = await self.query_tools.query_database(task)
+                
+                if query_result["success"]:
+                    data = query_result["data"]
+                    count = query_result["count"]
+                    sql = query_result["sql"]
+                    
+                    if count == 0:
+                        return {
+                            "response": f"Realicé la consulta pero no encontré resultados. (SQL: `{sql}`)",
+                            "data": [],
+                            "type": "text"
+                        }
+                    
+                    # Format a simple text response based on data
+                    return {
+                        "response": f"Encontré {count} registros que coinciden con tu consulta.",
+                        "data": data,
+                        "sql_debug": sql, # For transparency
+                        "type": "data_table" # Frontend can render this as a table
+                    }
+                elif "Security Alert" in query_result.get("error", ""):
+                     return {
+                        "response": "Lo siento, no puedo ejecutar esa consulta por razones de seguridad (intento de modificación de datos detectado).",
+                        "error": query_result["error"],
+                        "type": "error"
+                    }
+
+            # 5. Default to LLM chat (mock for now, would use RAG here)
+            return {
+                "response": f"Entendido, puedo ayudarte con '{task}'. ¿Deseas que busque información específica o inicie un proceso?",
+                "options": ["Buscar documentos", "Iniciar inspección", "Ver indicadores"]
             }
-            
-            self.status = AgentStatus.COMPLETED
-            return result
             
         except Exception as e:
             self.logger.error(f"Assistant task failed: {str(e)}")

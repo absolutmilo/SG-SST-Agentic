@@ -8,6 +8,16 @@ import tomli
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+class OpenAIConfig(BaseModel):
+    """OpenAI configuration."""
+    api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
+    model: str = "gpt-4"
+    temperature: float = 0.7
 
 
 class AppConfig(BaseModel):
@@ -183,6 +193,13 @@ class FeaturesConfig(BaseModel):
     whatsapp_notifications: bool = False
 
 
+class OpenAIConfig(BaseModel):
+    """OpenAI configuration."""
+    api_key: str = ""
+    model: str = "gpt-4"
+    temperature: float = 0.7
+
+
 class Settings(BaseModel):
     """Main settings class."""
     app: AppConfig
@@ -199,6 +216,7 @@ class Settings(BaseModel):
     indicators: IndicatorsConfig
     cache: CacheConfig
     features: FeaturesConfig
+    openai: OpenAIConfig
 
     @classmethod
     def load_from_toml(cls, config_path: Optional[str] = None) -> "Settings":
@@ -237,6 +255,7 @@ class Settings(BaseModel):
             indicators=IndicatorsConfig(**config_data.get("indicators", {})),
             cache=CacheConfig(**config_data.get("cache", {})),
             features=FeaturesConfig(**config_data.get("features", {})),
+            openai=OpenAIConfig(**config_data.get("openai", {})),
         )
 
 

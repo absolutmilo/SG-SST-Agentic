@@ -7,6 +7,8 @@ email communications in the SG-SST system.
 
 from typing import Dict, Any, List
 from .base_agent import BaseAgent, AgentContext, AgentStatus
+from agents.tools.email_tools import EmailTools
+from agents.tools.query_tools import QueryTools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,8 @@ class EmailAgent(BaseAgent):
             model="gpt-4",
             temperature=0.6  # Slightly higher for more natural language
         )
+        self.tools = EmailTools()
+        self.query_tools = QueryTools()
     
     def get_system_prompt(self) -> str:
         return """Eres un experto en comunicación profesional para sistemas de gestión de seguridad y salud en el trabajo (SG-SST).
@@ -187,23 +191,34 @@ No uses lenguaje técnico excesivo. Sé directo y accionable."""
             # Call LLM with tools (will be implemented when API key is available)
             # response = await self._call_llm(messages, tools=self.get_tools())
             
-            # For now, return a structured placeholder
-            result = {
-                "status": "pending_api_key",
-                "message": "Email agent ready. Awaiting OpenAI API key configuration.",
-                "task": task,
-                "agent": self.name,
-                "capabilities": [
-                    "Contextual email generation",
-                    "Automated notifications",
-                    "Task reminders",
-                    "Compliance alerts",
-                    "Professional formatting"
-                ]
-            }
-            
-            self.status = AgentStatus.COMPLETED
-            return result
+            # 3. Check if it's a question that needs data (New Capability)
+            if "?" in task and any(keyword in task.lower() for keyword in ["cuantos", "cuántos", "lista", "buscar", "dame", "muestrame", "muéstrame", "quien", "quién", "cual", "cuál"]):
+                self.logger.info(f"Email contains a data question. Attempting Text-to-SQL: {task}")
+                query_result = await self.query_tools.query_database(task)
+                
+                if query_result["success"]:
+                    data = query_result["data"]
+                    count = query_result["count"]
+                    
+                    # Generate a natural language response summarizing the data
+                    response_body = f"En respuesta a su consulta: '{task}'\n\n"
+                    response_body += f"Hemos encontrado {count} registros:\n\n"
+                    
+                    # Simple text formatting of the first few results
+                    for i, item in enumerate(data[:5]):
+                        response_body += f"- {str(item)}\n"
+                    
+                    if count > 5:
+                        response_body += f"\n... y {count - 5} más."
+                        
+                    return {
+                        "subject": f"Re: {task[:30]}...",
+                        "body": response_body,
+                        "type": "email_draft"
+                    }
+
+            # 4. Default: Generate a generic task notification
+            return await self.generate_task_notification(task, "Alta")
             
         except Exception as e:
             self.logger.error(f"Email task failed: {str(e)}")

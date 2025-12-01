@@ -431,6 +431,15 @@ export default {
   overflow: hidden;
 }
 
+.console-container {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 1.5rem;
+  height: 100%;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
 /* Agents Sidebar */
 .agents-sidebar {
   background: white;

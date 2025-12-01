@@ -137,9 +137,56 @@ class BaseAgent(ABC):
         Returns:
             LLM response
         """
-        # This will be implemented with actual OpenAI API calls
-        # For now, it's a placeholder
-        raise NotImplementedError("LLM integration pending API key configuration")
+        from langchain.chat_models import ChatOpenAI
+        from langchain.schema import HumanMessage, SystemMessage, AIMessage
+        from api.config import get_settings
+        
+        settings = get_settings()
+        if not settings.openai.api_key:
+            # Fallback to env var if not in settings yet (during startup)
+            import os
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                return {
+                    "content": "Error: OpenAI API key not configured. Please add OPENAI_API_KEY to your .env file.",
+                    "role": "assistant"
+                }
+        else:
+            api_key = settings.openai.api_key
+
+        try:
+            chat = ChatOpenAI(
+                openai_api_key=api_key,
+                model_name=self.model,
+                temperature=self.temperature
+            )
+            
+            # Convert dict messages to LangChain schema
+            lc_messages = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    lc_messages.append(SystemMessage(content=msg["content"]))
+                elif msg["role"] == "user":
+                    lc_messages.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    lc_messages.append(AIMessage(content=msg["content"]))
+            
+            # Call LLM
+            # Note: Tools support would go here using bind_functions or similar
+            response = await chat.apredict_messages(lc_messages)
+            
+            return {
+                "content": response.content,
+                "role": "assistant",
+                "function_call": None # Placeholder for tool calls
+            }
+            
+        except Exception as e:
+            self.logger.error(f"LLM call failed: {str(e)}")
+            return {
+                "content": f"I encountered an error processing your request: {str(e)}",
+                "role": "assistant"
+            }
     
     def _log_execution(self, task: str, result: Dict[str, Any], duration: float):
         """Log agent execution for audit trail"""
