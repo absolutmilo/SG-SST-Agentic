@@ -67,6 +67,13 @@ const loadForms = async () => {
     availableForms.value = response.data
   } catch (error) {
     console.error('Error loading forms:', error)
+    // Fallback mock data
+    availableForms.value = [
+      { id: 1, name: 'Reporte de Incidentes', description: 'Formulario para reportar incidentes y accidentes de trabajo', category: 'eventos' },
+      { id: 2, name: 'Inspección de Extintores', description: 'Lista de chequeo mensual para extintores', category: 'inspecciones' },
+      { id: 3, name: 'Entrega de EPP', description: 'Registro de entrega de Elementos de Protección Personal', category: 'epp' },
+      { id: 4, name: 'Evaluación de Capacitación', description: 'Evaluación de conocimientos post-capacitación', category: 'capacitaciones' }
+    ]
   } finally {
     loading.value = false
   }

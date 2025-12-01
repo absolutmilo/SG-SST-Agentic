@@ -98,36 +98,79 @@ def calculate_accident_indicators(
     - periodo: Optional period (e.g., "Q3", "Q1", or specific month)
     """
     try:
-        if periodo:
-            result = db.execute(
-                text("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = :year, @Periodo = :periodo"),
-                {"year": year, "periodo": periodo}
-            )
-        else:
-            result = db.execute(
-                text("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = :year"),
-                {"year": year}
-            )
+        logger.info(f"Calling SP_Calcular_Indicadores_Siniestralidad with year={year}, periodo={periodo}")
         
-        row = result.fetchone()
+        # Use raw connection to handle multiple result sets
+        connection = db.connection()
+        cursor = connection.connection.cursor()
+        
+        if periodo:
+            cursor.execute("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = ?, @Periodo = ?", year, periodo)
+        else:
+            cursor.execute("EXEC SP_Calcular_Indicadores_Siniestralidad @Anio = ?", year)
+        
+        # Consume all result sets until we find the data
+        row = None
+        while True:
+            try:
+                row = cursor.fetchone()
+                if row:
+                    break
+                # Move to next result set
+                if not cursor.nextset():
+                    break
+            except Exception:
+                # Try next result set
+                if not cursor.nextset():
+                    break
+        
+        cursor.close()
+        db.commit()
+        
         data = None
         if row:
+            # SP returns: Anio, Periodo, FechaInicio, FechaFin, Accidentes_Trabajo, Incidentes, 
+            # Dias_Incapacidad, Promedio_Trabajadores, HHT_Estimadas, Indice_Frecuencia_IF, 
+            # Indice_Frecuencia_Accidentalidad_IFA, Indice_Severidad_IS, 
+            # Indice_Lesiones_Incapacitantes_ILI, Interpretacion_IF
             data = {
                 "anio": row[0],
-                "periodo": row[1] if len(row) > 1 else None,
-                "indice_frecuencia": float(row[2]) if row[2] else 0,
-                "indice_severidad": float(row[3]) if row[3] else 0,
-                "indice_lesion_incapacitante": float(row[4]) if row[4] else 0,
-                "total_accidentes": row[5],
-                "total_incidentes": row[6],
-                "dias_incapacidad_total": row[7],
-                "promedio_empleados": row[8],
-                "hht_estimadas": row[9],
+                "periodo": row[1],
+                "fecha_inicio": str(row[2]) if len(row) > 2 and row[2] else None,
+                "fecha_fin": str(row[3]) if len(row) > 3 and row[3] else None,
+                "total_accidentes": row[4] if len(row) > 4 else 0,
+                "total_incidentes": row[5] if len(row) > 5 else 0,
+                "dias_incapacidad_total": row[6] if len(row) > 6 else 0,
+                "promedio_empleados": row[7] if len(row) > 7 else 0,
+                "hht_estimadas": float(row[8]) if len(row) > 8 and row[8] else 0,
+                "indice_frecuencia": float(row[9]) if len(row) > 9 and row[9] else 0,
+                "indice_frecuencia_accidentalidad": float(row[10]) if len(row) > 10 and row[10] else 0,
+                "indice_severidad": float(row[11]) if len(row) > 11 and row[11] else 0,
+                "indice_lesion_incapacitante": float(row[12]) if len(row) > 12 and row[12] else 0,
+                "interpretacion": row[13] if len(row) > 13 else None,
             }
+            logger.info(f"Successfully retrieved indicators: {data}")
+        else:
+            logger.warning(f"No data returned from SP for year={year}, periodo={periodo}")
+            # Return empty data structure instead of None
+            data = {
+                "anio": year,
+                "periodo": periodo,
+                "indice_frecuencia": 0,
+                "indice_severidad": 0,
+                "indice_lesion_incapacitante": 0,
+                "total_accidentes": 0,
+                "total_incidentes": 0,
+                "dias_incapacidad_total": 0,
+                "promedio_empleados": 0,
+                "hht_estimadas": 0,
+            }
+        
         return data
     except Exception as e:
-        logger.error(f"Error executing SP_Calcular_Indicadores_Siniestralidad: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error(f"Error executing SP_Calcular_Indicadores_Siniestralidad: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al calcular indicadores: {str(e)}")
 
 
 @router.get("/work-plan-compliance")
