@@ -1,11 +1,10 @@
 <template>
   <div class="min-h-screen bg-body">
-    <Sidebar />
     <Navbar />
     
     <!-- Main Content Area -->
-    <main class="pl-64 pt-16 min-h-screen transition-all duration-300">
-      <div class="p-8">
+    <main class="pt-4 min-h-screen transition-all duration-300">
+      <div class="p-8 max-w-7xl mx-auto">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -17,7 +16,6 @@
 </template>
 
 <script setup>
-import Sidebar from '../components/layout/Sidebar.vue'
 import Navbar from '../components/layout/Navbar.vue'
 </script>
 

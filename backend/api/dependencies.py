@@ -16,29 +16,40 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    logger.info(f"Validating token: {token[:20]}...")
+    
     payload = decode_access_token(token)
     if payload is None:
+        logger.error("Token decode failed")
         raise credentials_exception
         
     username: str = payload.get("sub")
     if username is None:
+        logger.error("No 'sub' in token payload")
         raise credentials_exception
         
+    logger.info(f"Token valid for user: {username}")
     token_data = TokenData(username=username)
     
     user = db.query(AuthorizedUser).filter(AuthorizedUser.Correo_Electronico == token_data.username).first()
     if user is None:
+        logger.error(f"User not found: {username}")
         raise credentials_exception
         
     if not user.Estado:
+        logger.error(f"User inactive: {username}")
         raise HTTPException(status_code=400, detail="Inactive user")
-        
+    
+    logger.info(f"User authenticated successfully: {username}")
     return user
 
 async def get_current_active_user(current_user: Annotated[AuthorizedUser, Depends(get_current_user)]):

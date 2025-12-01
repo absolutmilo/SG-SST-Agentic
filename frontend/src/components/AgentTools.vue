@@ -120,8 +120,8 @@
             <div v-if="agentCapabilities.tools" class="capability-item">
               <strong>Herramientas:</strong>
               <ul>
-                <li v-for="tool in agentCapabilities.tools" :key="tool.name">
-                  {{ tool.name }}
+                <li v-for="tool in agentCapabilities.tools" :key="tool.function.name">
+                  {{ tool.function.name }}
                 </li>
               </ul>
             </div>

@@ -1,13 +1,5 @@
 <template>
   <div class="agentic-console">
-    <div class="console-header">
-      <h1>
-        <i class="fas fa-robot"></i>
-        Consola Agentic IA
-      </h1>
-      <p class="subtitle">Asistente inteligente para SG-SST</p>
-    </div>
-
     <div class="console-container">
       <!-- Sidebar with agent selection -->
       <div class="agents-sidebar">
@@ -435,34 +427,6 @@ export default {
 <style scoped>
 .agentic-console {
   height: calc(100vh - 80px);
-  display: flex;
-  flex-direction: column;
-  background: #f5f7fa;
-}
-
-.console-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  text-align: center;
-}
-
-.console-header h1 {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 600;
-}
-
-.subtitle {
-  margin: 0.5rem 0 0 0;
-  opacity: 0.9;
-}
-
-.console-container {
-  display: grid;
-  grid-template-columns: 300px 1fr 350px;
-  gap: 1rem;
-  padding: 1rem;
   flex: 1;
   overflow: hidden;
 }
