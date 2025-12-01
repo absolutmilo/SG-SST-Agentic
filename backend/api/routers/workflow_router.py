@@ -22,7 +22,7 @@ from workflows.onboarding_flow import create_onboarding_workflow
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/workflow", tags=["workflows"])
+router = APIRouter(prefix="/api/workflow")
 
 # Initialize workflow engine
 workflow_engine = WorkflowEngine()

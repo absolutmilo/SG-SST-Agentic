@@ -22,7 +22,7 @@ from rag.loaders import DocumentLoader, PDFLoader, DOCXLoader
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/rag", tags=["rag"])
+router = APIRouter(prefix="/api/rag")
 
 # Initialize RAG components
 embedding_generator = EmbeddingGenerator()

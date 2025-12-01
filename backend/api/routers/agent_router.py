@@ -24,7 +24,7 @@ from orchestrator.role_orchestrator import RoleOrchestrator
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/agent", tags=["agents"])
+router = APIRouter(prefix="/api/agent")
 
 # Initialize agents
 risk_agent = RiskAgent()
