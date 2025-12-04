@@ -83,6 +83,22 @@
             Navegación
           </button>
         </div>
+
+        <!-- Autonomous Agent Tools -->
+        <div v-if="selectedAgent === 'autonomous_agent'" class="tool-group">
+          <button class="tool-btn" @click="executeQuickAction('coordinate_tasks')">
+            <i class="fas fa-sitemap"></i>
+            Coordinar Tareas
+          </button>
+          <button class="tool-btn" @click="executeQuickAction('generate_plan')">
+            <i class="fas fa-calendar-alt"></i>
+            Generar Plan Anual
+          </button>
+          <button class="tool-btn" @click="executeQuickAction('run_analytics')">
+            <i class="fas fa-chart-pie"></i>
+            Ejecutar Analítica
+          </button>
+        </div>
       </div>
 
       <!-- Templates -->
@@ -192,7 +208,12 @@ export default {
         // Assistant Agent
         help: '¿Cómo puedo ayudarte con el SG-SST?',
         explain_process: 'Explica el proceso paso a paso',
-        navigate: 'Ayúdame a navegar el sistema'
+        navigate: 'Ayúdame a navegar el sistema',
+
+        // Autonomous Agent
+        coordinate_tasks: 'Ejecutar coordinación de tareas (Escalamiento y Alertas)',
+        generate_plan: 'Generar Plan de Trabajo Anual 2025',
+        run_analytics: 'Analizar tendencias y generar insights'
       }
 
       this.$emit('execute-tool', {
@@ -217,7 +238,8 @@ export default {
         'risk_agent': 'Agente de Riesgos',
         'document_agent': 'Agente de Documentos',
         'email_agent': 'Agente de Correos',
-        'assistant_agent': 'Asistente General'
+        'assistant_agent': 'Asistente General',
+        'autonomous_agent': 'Agente Autónomo'
       }
       return names[agentName] || agentName
     }

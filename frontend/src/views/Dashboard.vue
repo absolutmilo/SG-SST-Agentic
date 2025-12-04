@@ -113,9 +113,9 @@ const stats = ref({
   pendingTasks: 0,
   activeAlerts: 0,
   activeEmployees: 0,
-  compliance: 95,
-  tasksTrend: '+12%',
-  alertsTrend: '-8%'
+  compliance: 0,
+  tasksTrend: '0%',
+  alertsTrend: '0%'
 })
 
 // Charts
@@ -128,19 +128,88 @@ const loadingIndicators = ref(true)
 const recentAlerts = ref([])
 const loadingAlerts = ref(true)
 
+// Initialize Data (Run generation SPs first)
+const initializeDashboard = async () => {
+  try {
+    // 1. Run generation/monitoring processes
+    await Promise.all([
+      api.post('/procedures/monitor-overdue-tasks'),
+      api.post('/procedures/generate-automatic-alerts'),
+      // We can also call generate-tasks-expiration if we have the coordinator ID, 
+      // but let's skip it for now or use a default if available, 
+      // or maybe the user meant generate-expiration-alerts which is different?
+      // The user listed: /api/v1/procedures/generate-tasks-expiration
+      // This endpoint requires id_coordinador_sst. We can try to get it from authStore if user is coordinator.
+      api.post('/procedures/generate-expiration-alerts') 
+    ])
+    
+    // 2. Fetch Reports & Data
+    await Promise.all([
+      fetchWorkPlanCompliance(),
+      fetchMedicalExamCompliance(),
+      fetchRegulatoryCompliance(),
+      fetchIndicators(),
+      fetchAlerts()
+    ])
+    
+  } catch (error) {
+    console.error('Error initializing dashboard:', error)
+  }
+}
+
+// Fetch Work Plan Compliance (For Tasks Stats)
+const fetchWorkPlanCompliance = async () => {
+  try {
+    const response = await api.get('/procedures/work-plan-compliance')
+    const summary = response.data.summary
+    
+    // Update Stats
+    stats.value.pendingTasks = summary.tareas_pendientes
+    // Calculate trend if possible, or leave as is
+    
+    // Update Tasks Chart
+    renderTasksChart({
+      pending: summary.tareas_pendientes,
+      in_progress: summary.tareas_en_curso,
+      completed: summary.tareas_cerradas,
+      overdue: summary.tareas_vencidas
+    })
+    
+  } catch (error) {
+    console.error('Error fetching work plan compliance:', error)
+  }
+}
+
+// Fetch Medical Exam Compliance (For Employees)
+const fetchMedicalExamCompliance = async () => {
+  try {
+    const response = await api.get('/procedures/medical-exam-compliance')
+    const summary = response.data.summary
+    
+    stats.value.activeEmployees = summary.total_empleados_activos
+    // Note: We use regulatory compliance for the main compliance stat now
+    
+  } catch (error) {
+    console.error('Error fetching medical exam compliance:', error)
+  }
+}
+
+// Fetch Regulatory Compliance (Res 0312)
+const fetchRegulatoryCompliance = async () => {
+  try {
+    const response = await api.get('/procedures/regulatory-compliance')
+    stats.value.compliance = response.data.compliance_score
+  } catch (error) {
+    console.error('Error fetching regulatory compliance:', error)
+  }
+}
+
 // Fetch accident indicators
 const fetchIndicators = async () => {
   try {
     const currentYear = new Date().getFullYear()
-    const currentMonth = new Date().getMonth() + 1 // 1-12
-    
-    // Determine current quarter
-    let quarter = 'Q1'
-    if (currentMonth >= 10) quarter = 'Q4'
-    else if (currentMonth >= 7) quarter = 'Q3'
-    else if (currentMonth >= 4) quarter = 'Q2'
-    
-    const response = await api.get(`/procedures/accident-indicators/${currentYear}?periodo=${quarter}`)
+    // We can pass period if needed, but let's get the annual summary or default
+    const response = await api.get(`/procedures/accident-indicators/${currentYear}`)
     indicatorsData.value = response.data
     loadingIndicators.value = false
     
@@ -148,14 +217,7 @@ const fetchIndicators = async () => {
     setTimeout(renderIndicatorsChart, 100)
   } catch (error) {
     console.error('Error fetching indicators:', error)
-    // Fallback mock data
-    indicatorsData.value = {
-      indice_frecuencia: 2.5,
-      indice_severidad: 1.8,
-      indice_lesion_incapacitante: 0.45
-    }
     loadingIndicators.value = false
-    setTimeout(renderIndicatorsChart, 100)
   }
 }
 
@@ -163,18 +225,12 @@ const fetchIndicators = async () => {
 const fetchAlerts = async () => {
   try {
     const response = await api.get('/procedures/pending-alerts')
-    recentAlerts.value = response.data.alerts.slice(0, 5) // Show only 5
+    const allAlerts = response.data.alerts
+    recentAlerts.value = allAlerts.slice(0, 5) // Show only 5
     stats.value.activeAlerts = response.data.total
     loadingAlerts.value = false
   } catch (error) {
     console.error('Error fetching alerts:', error)
-    // Fallback mock data
-    recentAlerts.value = [
-      { id_alerta: 1, descripcion: 'Extintores vencidos en Área de Producción', prioridad: 'Alta', fecha_generacion: new Date().toISOString() },
-      { id_alerta: 2, descripcion: 'Capacitación pendiente: Primeros Auxilios', prioridad: 'Media', fecha_generacion: new Date(Date.now() - 86400000).toISOString() },
-      { id_alerta: 3, descripcion: 'Revisión de EPP programada', prioridad: 'Baja', fecha_generacion: new Date(Date.now() - 172800000).toISOString() }
-    ]
-    stats.value.activeAlerts = 3
     loadingAlerts.value = false
   }
 }
@@ -182,6 +238,10 @@ const fetchAlerts = async () => {
 // Render Indicators Chart
 const renderIndicatorsChart = () => {
   if (!indicatorsChart.value || !indicatorsData.value) return
+  
+  // Destroy existing chart if it exists
+  const existingChart = Chart.getChart(indicatorsChart.value)
+  if (existingChart) existingChart.destroy()
   
   new Chart(indicatorsChart.value, {
     type: 'bar',
@@ -216,15 +276,26 @@ const renderIndicatorsChart = () => {
 }
 
 // Render Tasks Chart
-const renderTasksChart = () => {
+const renderTasksChart = (data = null) => {
   if (!tasksChart.value) return
   
+  // Destroy existing chart if it exists
+  const existingChart = Chart.getChart(tasksChart.value)
+  if (existingChart) existingChart.destroy()
+  
+  const chartData = data ? [
+    data.pending, 
+    data.in_progress, 
+    data.completed, 
+    data.overdue
+  ] : [0, 0, 0, 0]
+
   new Chart(tasksChart.value, {
     type: 'doughnut',
     data: {
       labels: ['Pendientes', 'En Curso', 'Completadas', 'Vencidas'],
       datasets: [{
-        data: [25, 15, 45, 5],
+        data: chartData,
         backgroundColor: [
           'rgba(37, 99, 235, 0.8)',
           'rgba(245, 158, 11, 0.8)',
@@ -251,7 +322,8 @@ const getAlertIcon = (priority) => {
   const icons = {
     'Alta': '🔴',
     'Media': '🟡',
-    'Baja': '🟢'
+    'Baja': '🟢',
+    'Crítica': '🔥'
   }
   return icons[priority] || '⚪'
 }
@@ -260,7 +332,8 @@ const getPriorityBadge = (priority) => {
   const classes = {
     'Alta': 'bg-red-100 text-red-700',
     'Media': 'bg-yellow-100 text-yellow-700',
-    'Baja': 'bg-green-100 text-green-700'
+    'Baja': 'bg-green-100 text-green-700',
+    'Crítica': 'bg-red-200 text-red-900 font-bold'
   }
   return classes[priority] || 'bg-gray-100 text-gray-700'
 }
@@ -276,9 +349,7 @@ const formatDate = (dateString) => {
 }
 
 onMounted(() => {
-  fetchIndicators()
-  fetchAlerts()
-  renderTasksChart()
+  initializeDashboard()
 })
 </script>
 

@@ -210,6 +210,13 @@ export default {
         if (this.selectedAgent) {
           await this.loadAgentCapabilities(this.selectedAgent)
         }
+
+        // Add Autonomous Agent manually
+        this.availableAgents.push({
+          name: 'autonomous_agent',
+          description: 'Sistema de control y automatización basado en reglas',
+          status: 'available'
+        })
       } catch (error) {
         console.error('Error loading agents:', error)
         this.loadingAgents = false
@@ -221,7 +228,24 @@ export default {
     },
 
     async loadAgentCapabilities(agentName) {
+      console.log('Loading capabilities for agent:', agentName, 'Type:', typeof agentName, 'Length:', agentName.length)
       try {
+        // Handle Autonomous Agent locally
+        if (agentName === 'autonomous_agent') {
+          this.currentAgentCapabilities = {
+            name: 'autonomous_agent',
+            description: 'Sistema de control y automatización basado en reglas',
+            model: 'Rule-Based Engine',
+            temperature: 0,
+            tools: [
+              { function: { name: 'coordinate_tasks' } },
+              { function: { name: 'generate_plan' } },
+              { function: { name: 'run_analytics' } }
+            ]
+          }
+          return
+        }
+
         const response = await axios.get(`/api/agent/capabilities/${agentName}`)
         this.currentAgentCapabilities = response.data
       } catch (error) {
@@ -271,8 +295,74 @@ export default {
             sources: response.data.sources,
             timestamp: new Date()
           })
+        } else if (this.selectedAgent === 'autonomous_agent') {
+          // Handle Autonomous Agent actions
+          let endpoint = ''
+          let method = 'post'
+          let params = {}
+
+          if (message.includes('coordinación de tareas')) {
+            endpoint = '/api/v1/autonomous/coordinate-tasks'
+          } else if (message.includes('Plan de Trabajo')) {
+            endpoint = '/api/v1/autonomous/generate-plan'
+            params = { year: 2025 }
+          } else if (message.includes('Analizar tendencias')) {
+            endpoint = '/api/v1/autonomous/analytics'
+            method = 'get'
+          } else {
+            // Default or unknown command
+            throw new Error('Comando no reconocido para el Agente Autónomo')
+          }
+
+          // Execute autonomous action
+          if (method === 'get') {
+            response = await axios.get(endpoint, { params })
+          } else {
+            response = await axios.post(endpoint, null, { params })
+          }
+
+          // Format response for display
+          let responseText = '### Resultado de la Ejecución\n\n'
+          const data = response.data
+
+          if (Array.isArray(data)) {
+            // Task Coordination results
+            if (data.length === 0) {
+              responseText += '✅ No se encontraron tareas pendientes de acción.'
+            } else {
+              responseText += `Se generaron **${data.length} acciones**:\n\n`
+              data.forEach(action => {
+                responseText += `- **${action.action}**: ${action.reason || action.message} (Prioridad: ${action.priority})\n`
+              })
+            }
+          } else if (data.year) {
+            // Planning results
+            responseText += `**Plan Generado para ${data.year}**\n\n`
+            responseText += `**Objetivos (${data.objectives.length})**:\n`
+            data.objectives.forEach(obj => responseText += `- ${obj.description}\n`)
+            responseText += `\n**Tareas Legales (${data.legal_tasks.length})**:\n`
+            data.legal_tasks.slice(0, 5).forEach(task => responseText += `- ${task.description}\n`)
+            if (data.legal_tasks.length > 5) responseText += `- ... y ${data.legal_tasks.length - 5} más\n`
+          } else if (data.trend) {
+            // Analytics results
+            responseText += `**Análisis de Tendencias**\n\n`
+            responseText += `- **Tendencia**: ${data.trend} (${data.change_percentage.toFixed(1)}%)\n`
+            responseText += `- **Zonas de Riesgo**: ${data.risk_hotspots.map(h => h.area).join(', ')}\n`
+            responseText += `\n**Recomendaciones**:\n`
+            data.recommendations.forEach(rec => responseText += `- ${rec}\n`)
+          } else {
+            responseText += JSON.stringify(data, null, 2)
+          }
+
+          this.messages.push({
+            role: 'assistant',
+            agent: this.selectedAgent,
+            text: responseText,
+            timestamp: new Date()
+          })
+
         } else {
-          // Use selected agent
+          // Use selected agent (LLM)
           response = await axios.post('/api/agent/run', {
             agent_name: this.selectedAgent,
             task: message,

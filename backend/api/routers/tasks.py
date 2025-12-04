@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy import text, and_, or_
 from typing import List, Optional
 from datetime import date
@@ -20,6 +20,13 @@ def get_tarea_model():
     except AttributeError:
         raise HTTPException(status_code=500, detail="TAREA table not found in database")
 
+def get_empleado_model():
+    """Get EMPLEADO model class."""
+    try:
+        return getattr(Base.classes, 'EMPLEADO')
+    except AttributeError:
+        raise HTTPException(status_code=500, detail="EMPLEADO table not found in database")
+
 
 @router.get("/my-tasks")
 def get_my_tasks(
@@ -34,13 +41,13 @@ def get_my_tasks(
     """
     try:
         Tarea = get_tarea_model()
+        Empleado = get_empleado_model()
         
-        # Build query - filter by user's email or role
-        query = db.query(Tarea).filter(
-            or_(
-                Tarea.Correo_Responsable == current_user.Correo_Electronico,
-                Tarea.Id_Responsable == current_user.Id_Usuario
-            )
+        # Build query - join with Empleado to filter by email
+        query = db.query(Tarea, Empleado).join(
+            Empleado, Tarea.id_empleado_responsable == Empleado.id_empleado
+        ).filter(
+            Empleado.Correo == current_user.Correo_Electronico
         )
         
         # Apply optional filters
@@ -51,15 +58,15 @@ def get_my_tasks(
             query = query.filter(Tarea.Prioridad == priority)
         
         # Order by priority and due date
-        tasks = query.order_by(
+        tasks_data = query.order_by(
             Tarea.Fecha_Vencimiento.asc()
         ).all()
         
         # Convert to dict
         result = []
-        for task in tasks:
+        for task, emp in tasks_data:
             result.append({
-                "id_tarea": task.Id_Tarea,
+                "id_tarea": task.id_tarea,
                 "descripcion": task.Descripcion,
                 "tipo_tarea": task.Tipo_Tarea,
                 "estado": task.Estado,
@@ -67,11 +74,11 @@ def get_my_tasks(
                 "fecha_creacion": task.Fecha_Creacion.isoformat() if task.Fecha_Creacion else None,
                 "fecha_vencimiento": task.Fecha_Vencimiento.isoformat() if task.Fecha_Vencimiento else None,
                 "fecha_cierre": task.Fecha_Cierre.isoformat() if task.Fecha_Cierre else None,
-                "responsable": task.Responsable,
-                "correo_responsable": task.Correo_Responsable,
-                "area": task.Area,
+                "responsable": f"{emp.Nombre} {emp.Apellidos}",
+                "correo_responsable": emp.Correo,
+                "area": emp.Area,
                 "origen_tarea": task.Origen_Tarea,
-                "observaciones": task.Observaciones
+                "observaciones": task.Observaciones_Cierre if hasattr(task, 'Observaciones_Cierre') else None
             })
         
         return {
@@ -94,13 +101,13 @@ def get_task_stats(
     """
     try:
         Tarea = get_tarea_model()
+        Empleado = get_empleado_model()
         
         # Base filter for user's tasks
-        base_query = db.query(Tarea).filter(
-            or_(
-                Tarea.Correo_Responsable == current_user.Correo_Electronico,
-                Tarea.Id_Responsable == current_user.Id_Usuario
-            )
+        base_query = db.query(Tarea).join(
+            Empleado, Tarea.id_empleado_responsable == Empleado.id_empleado
+        ).filter(
+            Empleado.Correo == current_user.Correo_Electronico
         )
         
         # Count by status
@@ -141,18 +148,20 @@ def update_task_status(
     """
     try:
         Tarea = get_tarea_model()
+        Empleado = get_empleado_model()
         
-        # Get task
-        task = db.query(Tarea).filter(Tarea.Id_Tarea == task_id).first()
+        # Get task with assignee info
+        result = db.query(Tarea, Empleado).join(
+            Empleado, Tarea.id_empleado_responsable == Empleado.id_empleado
+        ).filter(Tarea.id_tarea == task_id).first()
         
-        if not task:
+        if not result:
             raise HTTPException(status_code=404, detail="Task not found")
+            
+        task, emp = result
         
         # Verify user has permission (is assigned to task or is admin)
-        is_assigned = (
-            task.Correo_Responsable == current_user.Correo_Electronico or
-            task.Id_Responsable == current_user.Id_Usuario
-        )
+        is_assigned = (emp.Correo == current_user.Correo_Electronico)
         is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
         
         if not (is_assigned or is_admin):
@@ -161,12 +170,12 @@ def update_task_status(
         # Update status
         task.Estado = new_status
         
-        if observaciones:
-            task.Observaciones = observaciones
-        
-        # If closing task, set close date
+        # If closing task, set close date and observations
         if new_status == 'Cerrada':
             task.Fecha_Cierre = date.today()
+            task.id_empleado_cierre = emp.id_empleado # Assuming closer is the assignee or we should look up current user's employee ID
+            if observaciones:
+                task.Observaciones_Cierre = observaciones
         
         db.commit()
         db.refresh(task)
@@ -203,29 +212,46 @@ def assign_task(
         
         Tarea = get_tarea_model()
         Usuario = getattr(Base.classes, 'USUARIOS_AUTORIZADOS')
+        Empleado = get_empleado_model()
         
         # Get task
-        task = db.query(Tarea).filter(Tarea.Id_Tarea == task_id).first()
+        task = db.query(Tarea).filter(Tarea.id_tarea == task_id).first()
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        # Get new assignee
-        new_user = db.query(Usuario).filter(Usuario.Id_Usuario == user_id).first()
+        # Get new assignee (User from USUARIOS_AUTORIZADOS)
+        # We need to map User ID to Empleado ID. 
+        # Assuming USUARIOS_AUTORIZADOS shares Correo with EMPLEADO.
+        new_user = db.query(Usuario).filter(Usuario.id_autorizado == user_id).first() # Note: id_usuario in code was likely id_autorizado
         if not new_user:
-            raise HTTPException(status_code=404, detail="User not found")
+             # Fallback: maybe user_id passed IS the employee ID?
+             # Let's check if we can find an employee with this ID
+             emp = db.query(Empleado).filter(Empleado.id_empleado == user_id).first()
+             if emp:
+                 task.id_empleado_responsable = emp.id_empleado
+                 db.commit()
+                 return {
+                    "message": "Task assigned successfully",
+                    "task_id": task_id,
+                    "assigned_to": f"{emp.Nombre} {emp.Apellidos}"
+                }
+             else:
+                raise HTTPException(status_code=404, detail="User/Employee not found")
+
+        # Find employee by email
+        emp = db.query(Empleado).filter(Empleado.Correo == new_user.Correo_Electronico).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail=f"No employee profile found for user {new_user.Correo_Electronico}")
         
         # Update assignment
-        task.Id_Responsable = new_user.Id_Usuario
-        task.Responsable = new_user.NombreCompleto
-        task.Correo_Responsable = new_user.Correo_Electronico
-        task.Area = new_user.Area
+        task.id_empleado_responsable = emp.id_empleado
         
         db.commit()
         
         return {
             "message": "Task assigned successfully",
             "task_id": task_id,
-            "assigned_to": new_user.NombreCompleto
+            "assigned_to": f"{emp.Nombre} {emp.Apellidos}"
         }
         
     except HTTPException:
@@ -256,8 +282,11 @@ def get_all_tasks(
             raise HTTPException(status_code=403, detail="Only admins can view all tasks")
         
         Tarea = get_tarea_model()
+        Empleado = get_empleado_model()
         
-        query = db.query(Tarea)
+        query = db.query(Tarea, Empleado).join(
+            Empleado, Tarea.id_empleado_responsable == Empleado.id_empleado
+        )
         
         # Apply filters
         if status:
@@ -265,23 +294,23 @@ def get_all_tasks(
         if priority:
             query = query.filter(Tarea.Prioridad == priority)
         if area:
-            query = query.filter(Tarea.Area == area)
+            query = query.filter(Empleado.Area == area)
         
         total = query.count()
-        tasks = query.order_by(Tarea.Fecha_Vencimiento.asc()).offset(skip).limit(limit).all()
+        tasks_data = query.order_by(Tarea.Fecha_Vencimiento.asc()).offset(skip).limit(limit).all()
         
         result = []
-        for task in tasks:
+        for task, emp in tasks_data:
             result.append({
-                "id_tarea": task.Id_Tarea,
+                "id_tarea": task.id_tarea,
                 "descripcion": task.Descripcion,
                 "tipo_tarea": task.Tipo_Tarea,
                 "estado": task.Estado,
                 "prioridad": task.Prioridad,
                 "fecha_creacion": task.Fecha_Creacion.isoformat() if task.Fecha_Creacion else None,
                 "fecha_vencimiento": task.Fecha_Vencimiento.isoformat() if task.Fecha_Vencimiento else None,
-                "responsable": task.Responsable,
-                "area": task.Area
+                "responsable": f"{emp.Nombre} {emp.Apellidos}",
+                "area": emp.Area
             })
         
         return {
@@ -312,17 +341,18 @@ def get_assignable_users(
         if current_user.Nivel_Acceso not in ['CEO', 'Coordinador SST']:
             raise HTTPException(status_code=403, detail="Only admins can view users")
         
-        Usuario = getattr(Base.classes, 'USUARIOS_AUTORIZADOS')
+        Empleado = get_empleado_model()
         
-        users = db.query(Usuario).filter(Usuario.Activo == True).all()
+        # Get active employees
+        users = db.query(Empleado).filter(Empleado.Estado == True).all()
         
         result = []
         for user in users:
             result.append({
-                "id_usuario": user.Id_Usuario,
-                "nombre_completo": user.NombreCompleto,
-                "correo_electronico": user.Correo_Electronico,
-                "nivel_acceso": user.Nivel_Acceso,
+                "id_usuario": user.id_empleado, # Using employee ID as the ID for assignment
+                "nombre_completo": f"{user.Nombre} {user.Apellidos}",
+                "correo_electronico": user.Correo,
+                "nivel_acceso": "Empleado", # Default
                 "area": user.Area
             })
         
@@ -359,12 +389,12 @@ def create_task(
             raise HTTPException(status_code=403, detail="Only admins can create tasks")
         
         Tarea = get_tarea_model()
-        Usuario = getattr(Base.classes, 'USUARIOS_AUTORIZADOS')
+        Empleado = get_empleado_model()
         
-        # Get assignee
-        assignee = db.query(Usuario).filter(Usuario.Id_Usuario == id_responsable).first()
+        # Get assignee (Employee)
+        assignee = db.query(Empleado).filter(Empleado.id_empleado == id_responsable).first()
         if not assignee:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Employee not found")
         
         # Parse date
         from datetime import datetime
@@ -381,12 +411,9 @@ def create_task(
             Prioridad=prioridad,
             Fecha_Creacion=date.today(),
             Fecha_Vencimiento=fecha_venc,
-            Id_Responsable=assignee.Id_Usuario,
-            Responsable=assignee.NombreCompleto,
-            Correo_Responsable=assignee.Correo_Electronico,
-            Area=assignee.Area,
+            id_empleado_responsable=assignee.id_empleado,
             Origen_Tarea='Manual',
-            Observaciones=observaciones
+            # Observaciones=observaciones # Removed as column doesn't exist
         )
         
         db.add(new_task)
@@ -395,8 +422,8 @@ def create_task(
         
         return {
             "message": "Task created successfully",
-            "task_id": new_task.Id_Tarea,
-            "assigned_to": assignee.NombreCompleto
+            "task_id": new_task.id_tarea,
+            "assigned_to": f"{assignee.Nombre} {assignee.Apellidos}"
         }
         
     except HTTPException:

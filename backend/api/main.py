@@ -141,7 +141,7 @@ async def health_check():
 
 
 # Import and include routers
-from api.routers import crud, procedures, auth, tasks, smart_forms, employees
+from api.routers import crud, procedures, auth, tasks, smart_forms, employees, autonomous_router
 
 # Import agentic routers
 from api.routers import agent_router, workflow_router, rag_router
@@ -186,6 +186,13 @@ app.include_router(
     employees.router,
     prefix=f"{settings.api.api_prefix}/employees",
     tags=["Employees"]
+)
+
+# Autonomous Agents router - Rule-based agents
+app.include_router(
+    autonomous_router.router,
+    prefix=f"{settings.api.api_prefix}/autonomous",
+    tags=["Autonomous Agents"]
 )
 
 # ============================================

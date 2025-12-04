@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Dict, Any, Optional, List
-from datetime import date
+from datetime import date, datetime
 import logging
 
 from api.models import get_db, call_stored_procedure, STORED_PROCEDURES, AuthorizedUser
@@ -183,48 +183,108 @@ def work_plan_compliance_report(
     """
     Execute SP_Reporte_Cumplimiento_Plan.
     Returns work plan compliance report.
+    If id_plan is not provided, uses the most recent plan.
     """
     try:
-        params = {}
-        sql = "EXEC SP_Reporte_Cumplimiento_Plan"
-        
-        if id_plan:
-            params["id_plan"] = id_plan
-            sql += " @IdPlan = :id_plan"
+        # If no id_plan provided, get the latest one
+        if not id_plan:
+            # We need to reflect the table or use raw SQL since we might not have the model loaded
+            # Assuming PLAN_TRABAJO table exists as per previous context
+            latest_plan = db.execute(text("SELECT TOP 1 id_plan FROM PLAN_TRABAJO ORDER BY Anio DESC")).fetchone()
+            if latest_plan:
+                id_plan = latest_plan[0]
+            else:
+                # If no plan exists, return empty structure
+                return {
+                    "summary": {
+                        "anio": date.today().year,
+                        "presupuesto_asignado": 0,
+                        "tareas_totales": 0,
+                        "tareas_cerradas": 0,
+                        "tareas_en_curso": 0,
+                        "tareas_pendientes": 0,
+                        "tareas_vencidas": 0,
+                        "porcentaje_cumplimiento": 0,
+                        "tareas_a_tiempo": 0,
+                        "tareas_fuera_tiempo": 0,
+                    },
+                    "by_type": []
+                }
+
+        params = {"id_plan": id_plan}
+        sql = "EXEC SP_Reporte_Cumplimiento_Plan @IdPlan = :id_plan"
         
         if fecha_corte:
             params["fecha_corte"] = fecha_corte
-            if id_plan:
-                sql += ","
-            sql += " @FechaCorte = :fecha_corte"
+            sql += ", @FechaCorte = :fecha_corte"
         
-        result = db.execute(text(sql), params)
+        # Use raw connection for multiple result sets
+        connection = db.connection()
+        cursor = connection.connection.cursor()
         
-        # First result set - summary
-        summary_row = result.fetchone()
-        summary = {
-            "anio": summary_row[0],
-            "presupuesto_asignado": float(summary_row[1]) if summary_row[1] else 0,
-            "tareas_totales": summary_row[2],
-            "tareas_cerradas": summary_row[3],
-            "tareas_en_curso": summary_row[4],
-            "tareas_pendientes": summary_row[5],
-            "tareas_vencidas": summary_row[6],
-            "porcentaje_cumplimiento": float(summary_row[7]) if summary_row[7] else 0,
-            "tareas_a_tiempo": summary_row[8],
-            "tareas_fuera_tiempo": summary_row[9],
-        }
+        params_list = [id_plan]
+        sql = "EXEC SP_Reporte_Cumplimiento_Plan @IdPlan = ?"
+        
+        if fecha_corte:
+            sql += ", @FechaCorte = ?"
+            params_list.append(fecha_corte)
+            
+        cursor.execute(sql, *params_list)
+        
+        # Find first result set with data
+        summary_row = None
+        while True:
+            try:
+                summary_row = cursor.fetchone()
+                if summary_row:
+                    break
+                if not cursor.nextset():
+                    break
+            except Exception:
+                if not cursor.nextset():
+                    break
+        if summary_row:
+            logger.info(f"Work Plan Summary Row: {summary_row}")
+            # Check if column 1 is a date (which caused the error)
+            idx_offset = 0
+            if len(summary_row) > 1 and isinstance(summary_row[1], (date, datetime)):
+                idx_offset = 2 # Skip FechaInicio, FechaFin
+            
+            # Helper to safe float
+            def safe_float(val):
+                try:
+                    return float(val) if val is not None else 0
+                except (ValueError, TypeError):
+                    return 0
+
+            summary = {
+                "anio": summary_row[0],
+                "presupuesto_asignado": safe_float(summary_row[1 + idx_offset]) if len(summary_row) > 1 + idx_offset else 0,
+                "tareas_totales": summary_row[2 + idx_offset] if len(summary_row) > 2 + idx_offset else 0,
+                "tareas_cerradas": summary_row[3 + idx_offset] if len(summary_row) > 3 + idx_offset else 0,
+                "tareas_en_curso": summary_row[4 + idx_offset] if len(summary_row) > 4 + idx_offset else 0,
+                "tareas_pendientes": summary_row[5 + idx_offset] if len(summary_row) > 5 + idx_offset else 0,
+                "tareas_vencidas": summary_row[6 + idx_offset] if len(summary_row) > 6 + idx_offset else 0,
+                "porcentaje_cumplimiento": safe_float(summary_row[7 + idx_offset]) if len(summary_row) > 7 + idx_offset else 0,
+                "tareas_a_tiempo": summary_row[8 + idx_offset] if len(summary_row) > 8 + idx_offset else 0,
+                "tareas_fuera_tiempo": summary_row[9 + idx_offset] if len(summary_row) > 9 + idx_offset else 0,
+            }
+        else:
+             summary = {}
         
         # Second result set - by task type
-        result.nextset()
         by_type = []
-        for row in result:
-            by_type.append({
-                "tipo_tarea": row[0],
-                "total": row[1],
-                "cerradas": row[2],
-                "porcentaje_cumplimiento": float(row[3]) if row[3] else 0,
-            })
+        if cursor.nextset():
+            rows = cursor.fetchall()
+            for row in rows:
+                by_type.append({
+                    "tipo_tarea": row[0],
+                    "total": row[1],
+                    "cerradas": row[2],
+                    "porcentaje_cumplimiento": float(row[3]) if row[3] else 0,
+                })
+                
+        cursor.close()
         
         return {
             "summary": summary,
@@ -245,33 +305,51 @@ def medical_exam_compliance_report(
     Returns medical exam compliance report.
     """
     try:
-        result = db.execute(text("EXEC SP_Reporte_Cumplimiento_EMO"))
+        # Use raw connection for multiple result sets
+        connection = db.connection()
+        cursor = connection.connection.cursor()
         
-        # First result set - summary
-        summary_row = result.fetchone()
-        summary = {
-            "total_empleados_activos": summary_row[0],
-            "emo_vigentes": summary_row[1],
-            "sin_emo": summary_row[2],
-            "emo_por_vencer_45_dias": summary_row[3],
-            "porcentaje_cumplimiento": float(summary_row[4]) if summary_row[4] else 0,
-        }
+        cursor.execute("EXEC SP_Reporte_Cumplimiento_EMO")
+        
+        # Find first result set with data
+        summary_row = None
+        while True:
+            try:
+                summary_row = cursor.fetchone()
+                if summary_row:
+                    break
+                if not cursor.nextset():
+                    break
+            except Exception:
+                if not cursor.nextset():
+                    break
+        summary = {}
+        if summary_row:
+            summary = {
+                "total_empleados_activos": summary_row[0],
+                "emo_vigentes": summary_row[1],
+                "sin_emo": summary_row[2],
+                "emo_por_vencer_45_dias": summary_row[3],
+                "porcentaje_cumplimiento": float(summary_row[4]) if summary_row[4] else 0,
+            }
         
         # Second result set - employees without valid EMO
-        result.nextset()
         employees_without_emo = []
-        for row in result:
-            employees_without_emo.append({
-                "id_empleado": row[0],
-                "numero_documento": row[1],
-                "nombre_completo": row[2],
-                "cargo": row[3],
-                "area": row[4],
-                "correo": row[5],
-                "fecha_ingreso": row[6].isoformat() if row[6] else None,
-                "dias_desde_ingreso": row[7],
-                "estado_emo": row[8],
-            })
+        if cursor.nextset():
+            rows = cursor.fetchall()
+            for row in rows:
+                employees_without_emo.append({
+                    "id_empleado": row[0],
+                    "numero_documento": row[1],
+                    "nombre_completo": row[2],
+                    "cargo": row[3],
+                    "area": row[4],
+                    "correo": row[5],
+                    "estado": row[6],
+                    "fecha_vencimiento": row[7].isoformat() if row[7] and hasattr(row[7], 'isoformat') else None,
+                    "dias_vencidos": row[8] if row[8] is not None else None,
+                })
+        cursor.close()
         
         return {
             "summary": summary,
@@ -297,8 +375,11 @@ def executive_report(
         # This SP returns multiple result sets
         # You'll need to parse them according to your SP structure
         data = []
-        for row in result:
-            data.append(dict(row))
+        # Basic handling for now, assuming single result set or we just want the first one
+        # If it returns multiple, we need to know the structure of each
+        if result.returns_rows:
+            for row in result:
+                data.append(dict(row))
         
         return {"executive_report": data}
     except Exception as e:
@@ -320,8 +401,9 @@ def generate_automatic_alerts(
         
         # Count alerts generated BEFORE commit
         count = 0
-        for row in result:
-            count += 1
+        if result.returns_rows:
+            for row in result:
+                count += 1
             
         db.commit()
         return {"alerts_generated": count}
@@ -464,10 +546,11 @@ def generate_expiration_alerts(
         
         # Fetch results BEFORE commit
         alerts = []
-        for row in result:
-             # The result set structure depends on the SP output
-             # Based on script: Tipo, Prioridad, Descripcion, FechaEvento, ModuloOrigen, IdRelacionado, DestinatariosCorreo, Estado
-             alerts.append(dict(row))
+        if result.returns_rows:
+            for row in result:
+                 # The result set structure depends on the SP output
+                 # Based on script: Tipo, Prioridad, Descripcion, FechaEvento, ModuloOrigen, IdRelacionado, DestinatariosCorreo, Estado
+                 alerts.append(dict(row))
              
         db.commit()
         return {"generated_alerts": len(alerts), "details": alerts}
@@ -575,3 +658,61 @@ def register_agent_conversation(
         db.rollback()
         logger.error(f"Error executing SP_Registrar_Conversacion_Agente: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/regulatory-compliance")
+def regulatory_compliance(
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
+    """
+    Calculate Regulatory Compliance (Resolución 0312).
+    Based on EVALUACION_LEGAL table.
+    """
+    try:
+        # Query to get the latest evaluation for each requirement and calculate compliance
+        sql = """
+        WITH LatestEval AS (
+            SELECT 
+                id_requisito, 
+                EstadoCumplimiento,
+                ROW_NUMBER() OVER (PARTITION BY id_requisito ORDER BY FechaEvaluacion DESC) as rn
+            FROM EVALUACION_LEGAL
+        )
+        SELECT 
+            COUNT(*) as TotalEvaluated,
+            SUM(CASE WHEN EstadoCumplimiento = 'Cumple' THEN 1 ELSE 0 END) as Cumple,
+            SUM(CASE WHEN EstadoCumplimiento = 'Cumple Parcialmente' THEN 1 ELSE 0 END) as CumpleParcial,
+            SUM(CASE WHEN EstadoCumplimiento = 'No Aplica' THEN 1 ELSE 0 END) as NoAplica
+        FROM LatestEval
+        WHERE rn = 1
+        """
+        
+        result = db.execute(text(sql)).fetchone()
+        
+        compliance_score = 0
+        if result and result[0] > 0:
+            total = result[0]
+            cumple = result[1] or 0
+            parcial = result[2] or 0
+            no_aplica = result[3] or 0
+            
+            # Formula: (Cumple + 0.5 * Parcial) / (Total - NoAplica) * 100
+            denominator = total - no_aplica
+            if denominator > 0:
+                score = (cumple + (0.5 * parcial)) / denominator * 100
+                compliance_score = round(score, 2)
+        
+        return {
+            "compliance_score": compliance_score,
+            "details": {
+                "total_evaluated": result[0] if result else 0,
+                "fully_compliant": result[1] if result else 0,
+                "partially_compliant": result[2] if result else 0,
+                "not_applicable": result[3] if result else 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error calculating regulatory compliance: {e}")
+        # Return 0 instead of erroring out to keep dashboard stable
+        return {"compliance_score": 0, "error": str(e)}
