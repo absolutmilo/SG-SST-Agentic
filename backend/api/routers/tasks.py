@@ -77,8 +77,10 @@ def get_my_tasks(
                 "responsable": f"{emp.Nombre} {emp.Apellidos}",
                 "correo_responsable": emp.Correo,
                 "area": emp.Area,
+                "area": emp.Area,
                 "origen_tarea": task.Origen_Tarea,
-                "observaciones": task.Observaciones_Cierre if hasattr(task, 'Observaciones_Cierre') else None
+                "observaciones": task.Observaciones_Cierre if hasattr(task, 'Observaciones_Cierre') else None,
+                "id_formulario": task.id_formulario if hasattr(task, 'id_formulario') else None
             })
         
         return {
@@ -310,7 +312,8 @@ def get_all_tasks(
                 "fecha_creacion": task.Fecha_Creacion.isoformat() if task.Fecha_Creacion else None,
                 "fecha_vencimiento": task.Fecha_Vencimiento.isoformat() if task.Fecha_Vencimiento else None,
                 "responsable": f"{emp.Nombre} {emp.Apellidos}",
-                "area": emp.Area
+                "area": emp.Area,
+                "id_formulario": task.id_formulario if hasattr(task, 'id_formulario') else None
             })
         
         return {

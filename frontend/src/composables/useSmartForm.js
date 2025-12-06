@@ -229,7 +229,8 @@ export function useSmartForm(formId, context = {}) {
                 form_version: formDefinition.value.version,
                 data: formData.value,
                 submitted_by: 0, // Will be set by backend from current_user
-                attachments: []
+                attachments: [],
+                context: context // Pass context (e.g., taskId) to backend
             }
 
             const response = await api.post(`/smart-forms/forms/${formId}/submit`, submission)

@@ -165,6 +165,7 @@
 <script>
 import AgentTools from '@/components/AgentTools.vue'
 import axios from 'axios'
+import api from '@/services/api'
 import { marked } from 'marked'
 import { useAuthStore } from '@/stores/auth'
 
@@ -316,9 +317,12 @@ export default {
 
           // Execute autonomous action
           if (method === 'get') {
-            response = await axios.get(endpoint, { params })
+            // Remove /api/v1 prefix if present, as api instance adds it
+            const relativeEndpoint = endpoint.replace('/api/v1', '')
+            response = await api.get(relativeEndpoint, { params })
           } else {
-            response = await axios.post(endpoint, null, { params })
+            const relativeEndpoint = endpoint.replace('/api/v1', '')
+            response = await api.post(relativeEndpoint, null, { params })
           }
 
           // Format response for display
@@ -332,7 +336,8 @@ export default {
             } else {
               responseText += `Se generaron **${data.length} acciones**:\n\n`
               data.forEach(action => {
-                responseText += `- **${action.action}**: ${action.reason || action.message} (Prioridad: ${action.priority})\n`
+                const details = action.description || action.reason || action.message || 'Sin detalles'
+                responseText += `- **${action.action}**: ${details} (Prioridad: ${action.priority})\n`
               })
             }
           } else if (data.year) {

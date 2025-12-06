@@ -78,6 +78,7 @@
             :task="task"
             @update-status="handleStatusUpdate"
             @view-details="viewTaskDetails"
+            @execute-form="handleExecuteForm"
           />
           <div v-if="taskStore.pendingTasks.length === 0" class="empty-state">
             <p class="text-muted text-sm">No hay tareas pendientes</p>
@@ -97,6 +98,7 @@
             :task="task"
             @update-status="handleStatusUpdate"
             @view-details="viewTaskDetails"
+            @execute-form="handleExecuteForm"
           />
           <div v-if="taskStore.inProgressTasks.length === 0" class="empty-state">
             <p class="text-muted text-sm">No hay tareas en curso</p>
@@ -132,6 +134,7 @@
           :task="task"
           @update-status="handleStatusUpdate"
           @view-details="viewTaskDetails"
+          @execute-form="handleExecuteForm"
         />
         <div v-if="taskStore.myTasks.length === 0" class="empty-state py-12">
           <p class="text-muted">No hay tareas para mostrar</p>
@@ -185,6 +188,15 @@
       @close="showCreateModal = false"
       @task-created="handleTaskCreated"
     />
+
+    <!-- Smart Form Modal -->
+    <SmartFormModal
+      v-if="showFormModal"
+      :formId="selectedFormId"
+      :context="selectedFormContext"
+      @close="showFormModal = false"
+      @submit-success="handleFormSubmitted"
+    />
   </div>
 </template>
 
@@ -196,12 +208,16 @@ import TaskCard from '../components/tasks/TaskCard.vue'
 import TaskFilters from '../components/tasks/TaskFilters.vue'
 import StatCard from '../components/ui/StatCard.vue'
 import CreateTaskModal from '../components/tasks/CreateTaskModal.vue'
+import SmartFormModal from '../components/forms/SmartFormModal.vue'
 
 const taskStore = useTaskStore()
 const authStore = useAuthStore()
 const viewMode = ref('kanban')
 const selectedTask = ref(null)
 const showCreateModal = ref(false)
+const showFormModal = ref(false)
+const selectedFormId = ref('')
+const selectedFormContext = ref({})
 
 const handleFilterUpdate = (filters) => {
   taskStore.filters = filters
@@ -222,6 +238,23 @@ const viewTaskDetails = (task) => {
 
 const handleTaskCreated = () => {
   // Refresh tasks after creating a new one
+  taskStore.fetchMyTasks()
+  taskStore.fetchStats()
+}
+
+const handleExecuteForm = (task) => {
+  selectedFormId.value = task.id_formulario
+  selectedFormContext.value = {
+    taskId: task.id_tarea,
+    employeeId: task.id_empleado_responsable,
+    description: task.descripcion
+  }
+  showFormModal.value = true
+}
+
+const handleFormSubmitted = () => {
+  showFormModal.value = false
+  // Refresh tasks to show updated status (if form submission updates task)
   taskStore.fetchMyTasks()
   taskStore.fetchStats()
 }

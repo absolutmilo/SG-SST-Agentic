@@ -463,8 +463,8 @@ class TaskCoordinatorAgent:
                 
                 if exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                        VALUES (:emp_id, :desc, DATEADD(day, 15, GETDATE()), 'Alta', 'Pendiente', 'Salud')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                        VALUES (:emp_id, :desc, DATEADD(day, 15, GETDATE()), 'Alta', 'Pendiente', 'Salud', 'form_examen_medico')
                     """)
                     self.db.execute(insert_task, {"emp_id": emp.id_empleado, "desc": description})
                     self.db.commit()
@@ -519,8 +519,8 @@ class TaskCoordinatorAgent:
                 
                 if exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                        VALUES (:coord_id, :desc, DATEADD(day, 7, GETDATE()), 'Alta', 'Pendiente', 'Capacitación')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                        VALUES (:coord_id, :desc, DATEADD(day, 7, GETDATE()), 'Alta', 'Pendiente', 'Capacitación', 'form_registro_capacitacion')
                     """)
                     self.db.execute(insert_task, {"coord_id": coord_id, "desc": description})
                     self.db.commit()
@@ -573,8 +573,8 @@ class TaskCoordinatorAgent:
                 
                 if exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                        VALUES (:pres_id, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                        VALUES (:pres_id, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'meeting-minutes')
                     """)
                     self.db.execute(insert_task, {"pres_id": pres_id, "desc": description})
                     self.db.commit()
@@ -618,8 +618,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{insp.Tipo_Inspeccion}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Alta', 'Pendiente', 'Inspección')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Alta', 'Pendiente', 'Inspección', 'inspection-general')
                         """)
                         self.db.execute(insert, {"emp": assigned_to, "desc": description})
                         self.db.commit()
@@ -664,8 +664,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{eq.Nombre}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                            VALUES (:emp, :desc, DATEADD(day, 7, GETDATE()), 'Media', 'Pendiente', 'Mantenimiento')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 7, GETDATE()), 'Media', 'Pendiente', 'Mantenimiento', 'form_registro_mantenimiento')
                         """)
                         self.db.execute(insert, {"emp": assigned_to, "desc": description})
                         self.db.commit()
@@ -700,8 +700,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{ris.Descripcion}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                            VALUES (:emp, :desc, DATEADD(day, 10, GETDATE()), 'Alta', 'Pendiente', 'Evaluación Riesgo')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 10, GETDATE()), 'Alta', 'Pendiente', 'Evaluación Riesgo', 'form_evaluacion_riesgo')
                         """)
                         self.db.execute(insert, {"emp": assigned_to, "desc": description})
                         self.db.commit()
@@ -745,8 +745,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": pres_id, "desc": f"%reunión mensual del Comité de Convivencia%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'form_acta_reunion')
                         """)
                         self.db.execute(insert, {"emp": pres_id, "desc": description})
                         self.db.commit()

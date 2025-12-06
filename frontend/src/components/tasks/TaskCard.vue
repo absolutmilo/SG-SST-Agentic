@@ -28,6 +28,14 @@
     
     <div class="task-actions" @click.stop>
       <button
+        v-if="task.id_formulario && task.estado !== 'Cerrada'"
+        @click="$emit('execute-form', task)"
+        class="action-btn"
+        title="Ejecutar Formulario"
+      >
+        📝
+      </button>
+      <button
         v-if="task.estado !== 'Cerrada'"
         @click="$emit('update-status', task, 'En Curso')"
         class="action-btn"
@@ -64,7 +72,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['click', 'update-status', 'view-details'])
+defineEmits(['click', 'update-status', 'view-details', 'execute-form'])
 
 const isOverdue = computed(() => {
   if (!props.task.fecha_vencimiento || props.task.estado === 'Cerrada') return false

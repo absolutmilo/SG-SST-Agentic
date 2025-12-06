@@ -162,6 +162,7 @@ class FormSubmission(BaseModel):
     attachments: List[str] = []  # File paths
     status: str = "submitted"  # draft, submitted, approved, rejected
     approval_history: List[Dict[str, Any]] = []
+    context: Dict[str, Any] = {}  # Context data (e.g., taskId)
     
     # Metadata
     ip_address: Optional[str] = None

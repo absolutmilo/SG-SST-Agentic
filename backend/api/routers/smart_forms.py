@@ -178,7 +178,7 @@ async def submit_form(
         try:
             for action in sorted(form_def.on_submit, key=lambda x: x.order):
                 logger.info(f"Executing workflow action: {action.action}")
-                execute_workflow_action(db, action, submission.data, current_user)
+                execute_workflow_action(db, action, submission.data, current_user, submission.context)
         except Exception as workflow_error:
             logger.error(f"Workflow execution failed: {workflow_error}")
             # Don't fail the submission if workflow fails
@@ -409,7 +409,8 @@ def execute_workflow_action(
     db: Session,
     action: WorkflowAction,
     form_data: Dict[str, Any],
-    current_user: AuthorizedUser
+    current_user: AuthorizedUser,
+    context: Dict[str, Any] = {}
 ):
     """Execute a workflow action"""
     try:
@@ -436,6 +437,10 @@ def execute_workflow_action(
         elif action.action == "ai_analyze":
             # AI analysis
             ai_analyze(action.params, form_data)
+
+        elif action.action == "complete_task":
+            # Complete the task linked to this form
+            complete_task_action(db, context, current_user)
         
     except Exception as e:
         logger.error(f"Error executing workflow action {action.action}: {e}")
@@ -671,3 +676,37 @@ def ai_analyze(params: Dict[str, Any], form_data: Dict[str, Any]):
         
     except Exception as e:
         logger.error(f"Error in AI analysis: {e}")
+
+
+def complete_task_action(db: Session, context: Dict[str, Any], current_user: AuthorizedUser):
+    """Complete the task that launched this form"""
+    try:
+        task_id = context.get("taskId")
+        if not task_id:
+            logger.warning("No taskId in context, cannot complete task")
+            return
+
+        # Find task
+        Tarea = getattr(Base.classes, 'TAREA')
+        task = db.query(Tarea).filter(Tarea.id_tarea == task_id).first()
+        
+        if not task:
+            logger.warning(f"Task {task_id} not found")
+            return
+            
+        # Update status
+        task.Estado = 'Cerrada'
+        task.Fecha_Cierre = datetime.now().date()
+        
+        # Try to find employee ID for current user
+        Empleado = getattr(Base.classes, 'EMPLEADO')
+        emp = db.query(Empleado).filter(Empleado.Correo == current_user.Correo_Electronico).first()
+        if emp:
+            task.id_empleado_cierre = emp.id_empleado
+            
+        db.commit()
+        logger.info(f"Task {task_id} completed successfully via form submission")
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error completing task: {e}")

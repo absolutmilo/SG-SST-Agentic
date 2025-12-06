@@ -22,6 +22,16 @@ def get_form_catalog():
         "form_enfermedad_laboral": get_enfermedad_laboral_form(),
         "form_entrega_epp": get_entrega_epp_form(),
         "form_autoevaluacion_0312": get_autoevaluacion_form(),
+        "form_examen_medico": get_examen_medico_form(),
+        "form_inspeccion_extintor": get_inspeccion_extintor_form(),
+        "form_inspeccion_botiquin": get_inspeccion_botiquin_form(),
+        "form_inspeccion_locativa": get_inspeccion_locativa_form(),
+        "form_registro_capacitacion": get_registro_capacitacion_form(),
+        "form_permiso_alturas": get_permiso_alturas_form(),
+        "form_accion_correctiva": get_accion_correctiva_form(),
+        "form_registro_mantenimiento": get_registro_mantenimiento_form(),
+        "form_evaluacion_riesgo": get_evaluacion_riesgo_form(),
+        "form_acta_reunion": get_acta_reunion_form(),
     }
 
 
@@ -736,4 +746,350 @@ def get_autoevaluacion_form() -> SmartFormDefinition:
         generate_pdf=True,
         send_notifications=True,
         version="1.0"
+    )
+
+
+# ============================================================
+# 6. EXAMEN MÉDICO OCUPACIONAL (EMO)
+# ============================================================
+
+def get_examen_medico_form() -> SmartFormDefinition:
+    """Occupational Medical Exam Form"""
+    return SmartFormDefinition(
+        id="form_examen_medico",
+        name="Examen Médico Ocupacional",
+        title="Registro de Examen Médico Ocupacional",
+        description="Registro del concepto de aptitud médica laboral",
+        category="salud",
+        legal_reference=["Resolución 2346 de 2007"],
+        
+        fields=[
+            FormField(
+                id="id_empleado",
+                name="empleado",
+                label="Trabajador",
+                type=FieldType.EMPLOYEE_SELECT,
+                required=True,
+                order=1,
+                grid_columns=6,
+                autocomplete_from="EMPLEADO"
+            ),
+            FormField(
+                id="tipo_examen",
+                name="tipo_examen",
+                label="Tipo de Examen",
+                type=FieldType.SELECT,
+                required=True,
+                order=2,
+                grid_columns=6,
+                options=[
+                    {"value": "ingreso", "label": "Ingreso (Pre-ocupacional)"},
+                    {"value": "periodico", "label": "Periódico"},
+                    {"value": "retiro", "label": "Retiro (Egreso)"},
+                    {"value": "post_incapacidad", "label": "Post-Incapacidad"}
+                ]
+            ),
+            FormField(
+                id="fecha_examen",
+                name="fecha_examen",
+                label="Fecha del Examen",
+                type=FieldType.DATE,
+                required=True,
+                order=3,
+                grid_columns=6,
+                default_value="today"
+            ),
+            FormField(
+                id="concepto_aptitud",
+                name="concepto",
+                label="Concepto de Aptitud",
+                type=FieldType.SELECT,
+                required=True,
+                order=4,
+                grid_columns=6,
+                options=[
+                    {"value": "apto", "label": "Apto sin Restricciones"},
+                    {"value": "apto_restricciones", "label": "Apto con Restricciones"},
+                    {"value": "aplazado", "label": "Aplazado"},
+                    {"value": "no_apto", "label": "No Apto"}
+                ]
+            ),
+            FormField(
+                id="restricciones",
+                name="restricciones",
+                label="Restricciones y Recomendaciones",
+                type=FieldType.TEXTAREA,
+                required=True,
+                order=5,
+                grid_columns=12,
+                placeholder="Detalle las restricciones laborales o recomendaciones médicas..."
+            ),
+            FormField(
+                id="certificado_adjunto",
+                name="certificado",
+                label="Certificado de Aptitud (PDF)",
+                type=FieldType.FILE,
+                required=True,
+                order=6,
+                grid_columns=12,
+                help_text="Adjunte el certificado emitido por la IPS"
+            ),
+        ],
+        
+        on_submit=[
+            WorkflowAction(
+                action="save_to_table",
+                params={"table": "EXAMEN_MEDICO"}, # Assumes table exists or will be handled generically
+                order=1
+            ),
+            WorkflowAction(
+                action="update_employee_status",
+                params={
+                    "status_field": "Estado_Salud",
+                    "value_map": {
+                        "apto": "Apto",
+                        "apto_restricciones": "Con Restricciones",
+                        "no_apto": "No Apto"
+                    }
+                },
+                order=2
+            ),
+        ],
+        
+        allow_save_draft=True,
+        allow_attachments=True,
+        version="1.0"
+    )
+
+
+# ============================================================
+# 7. INSPECCIONES DE SEGURIDAD
+# ============================================================
+
+def get_inspeccion_extintor_form() -> SmartFormDefinition:
+    """Extinguisher Inspection Form"""
+    return SmartFormDefinition(
+        id="form_inspeccion_extintor",
+        name="Inspección de Extintores",
+        title="Lista de Chequeo de Extintores",
+        category="inspecciones",
+        fields=[
+            FormField(id="ubicacion", name="ubicacion", label="Ubicación", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="tipo_extintor", name="tipo", label="Tipo", type=FieldType.SELECT, required=True, order=2,
+                      options=[{"value": "ABC", "label": "ABC"}, {"value": "CO2", "label": "CO2"}, {"value": "Solkaflam", "label": "Solkaflam"}]),
+            FormField(id="presion", name="presion", label="Presión Adecuada", type=FieldType.RADIO, required=True, order=3,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="acceso", name="acceso", label="Acceso Libre", type=FieldType.RADIO, required=True, order=4,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="observaciones", name="observaciones", label="Observaciones", type=FieldType.TEXTAREA, order=5)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_EXTINTOR"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+def get_inspeccion_botiquin_form() -> SmartFormDefinition:
+    """First Aid Kit Inspection Form"""
+    return SmartFormDefinition(
+        id="form_inspeccion_botiquin",
+        name="Inspección de Botiquín",
+        title="Lista de Chequeo de Botiquín",
+        category="inspecciones",
+        fields=[
+            FormField(id="ubicacion", name="ubicacion", label="Ubicación", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="elementos_completos", name="elementos", label="Elementos Completos", type=FieldType.RADIO, required=True, order=2,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="fechas_vencimiento", name="vencimiento", label="Fechas de Vencimiento Vigentes", type=FieldType.RADIO, required=True, order=3,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="observaciones", name="observaciones", label="Observaciones", type=FieldType.TEXTAREA, order=4)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_BOTIQUIN"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+def get_inspeccion_locativa_form() -> SmartFormDefinition:
+    """Facility Inspection Form"""
+    return SmartFormDefinition(
+        id="form_inspeccion_locativa",
+        name="Inspección Locativa",
+        title="Inspección de Instalaciones",
+        category="inspecciones",
+        fields=[
+            FormField(id="area", name="area", label="Área Inspeccionada", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="iluminacion", name="iluminacion", label="Iluminación", type=FieldType.SELECT, required=True, order=2,
+                      options=[{"value": "buena", "label": "Buena"}, {"value": "regular", "label": "Regular"}, {"value": "mala", "label": "Mala"}]),
+            FormField(id="orden_aseo", name="orden", label="Orden y Aseo", type=FieldType.SELECT, required=True, order=3,
+                      options=[{"value": "bueno", "label": "Bueno"}, {"value": "regular", "label": "Regular"}, {"value": "malo", "label": "Malo"}]),
+            FormField(id="riesgos_electricos", name="electricos", label="Riesgos Eléctricos", type=FieldType.RADIO, required=True, order=4,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="observaciones", name="observaciones", label="Hallazgos", type=FieldType.TEXTAREA, order=5)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_LOCATIVA"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 8. CAPACITACIÓN Y ENTRENAMIENTO
+# ============================================================
+
+def get_registro_capacitacion_form() -> SmartFormDefinition:
+    """Training Attendance Form"""
+    return SmartFormDefinition(
+        id="form_registro_capacitacion",
+        name="Registro de Capacitación",
+        title="Control de Asistencia a Capacitación",
+        category="capacitacion",
+        fields=[
+            FormField(id="tema", name="tema", label="Tema", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="facilitador", name="facilitador", label="Facilitador", type=FieldType.TEXT, required=True, order=2),
+            FormField(id="fecha", name="fecha", label="Fecha", type=FieldType.DATE, required=True, order=3, default_value="today"),
+            FormField(id="asistentes", name="asistentes", label="Asistentes", type=FieldType.EMPLOYEE_SELECT, required=True, order=4,
+                      grid_columns=12, help_text="Seleccione los empleados asistentes"),
+            FormField(id="evaluacion", name="evaluacion", label="Evaluación de Eficacia", type=FieldType.TEXTAREA, order=5)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "REGISTRO_CAPACITACION"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 9. PERMISOS DE TRABAJO
+# ============================================================
+
+def get_permiso_alturas_form() -> SmartFormDefinition:
+    """Work at Heights Permit Form"""
+    return SmartFormDefinition(
+        id="form_permiso_alturas",
+        name="Permiso de Trabajo en Alturas",
+        title="Permiso para Trabajo en Alturas",
+        category="permisos",
+        fields=[
+            FormField(id="trabajador", name="trabajador", label="Trabajador Autorizado", type=FieldType.EMPLOYEE_SELECT, required=True, order=1),
+            FormField(id="altura_aprox", name="altura", label="Altura Aproximada (m)", type=FieldType.NUMBER, required=True, order=2),
+            FormField(id="equipos_proteccion", name="epp", label="EPP Requeridos", type=FieldType.MULTISELECT, required=True, order=3,
+                      options=[{"value": "arnes", "label": "Arnés"}, {"value": "casco", "label": "Casco con Barbuquejo"}, {"value": "eslinga", "label": "Eslinga"}]),
+            FormField(id="puntos_anclaje", name="anclaje", label="Puntos de Anclaje Verificados", type=FieldType.RADIO, required=True, order=4,
+                      options=[{"value": "si", "label": "Sí"}, {"value": "no", "label": "No"}]),
+            FormField(id="autorizado_por", name="autorizador", label="Autorizado Por", type=FieldType.TEXT, required=True, order=5)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "PERMISO_ALTURAS"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 10. ACCIONES CORRECTIVAS (ACPM)
+# ============================================================
+
+def get_accion_correctiva_form() -> SmartFormDefinition:
+    """Corrective Action Form"""
+    return SmartFormDefinition(
+        id="form_accion_correctiva",
+        name="Acción Correctiva/Preventiva",
+        title="Registro de Acción Correctiva/Preventiva",
+        category="gestion",
+        fields=[
+            FormField(id="origen", name="origen", label="Origen", type=FieldType.SELECT, required=True, order=1,
+                      options=[{"value": "inspeccion", "label": "Inspección"}, {"value": "accidente", "label": "Accidente"}, {"value": "auditoria", "label": "Auditoría"}]),
+            FormField(id="descripcion_hallazgo", name="hallazgo", label="Descripción del Hallazgo", type=FieldType.TEXTAREA, required=True, order=2),
+            FormField(id="analisis_causas", name="causas", label="Análisis de Causas", type=FieldType.TEXTAREA, required=True, order=3),
+            FormField(id="plan_accion", name="plan", label="Plan de Acción", type=FieldType.TEXTAREA, required=True, order=4),
+            FormField(id="responsable", name="responsable", label="Responsable", type=FieldType.EMPLOYEE_SELECT, required=True, order=5),
+            FormField(id="fecha_cierre", name="fecha_cierre", label="Fecha de Cierre Estimada", type=FieldType.DATE, required=True, order=6)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "ACCION_CORRECTIVA"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 11. MANTENIMIENTO
+# ============================================================
+
+def get_registro_mantenimiento_form() -> SmartFormDefinition:
+    """Maintenance Record Form"""
+    return SmartFormDefinition(
+        id="form_registro_mantenimiento",
+        name="Registro de Mantenimiento",
+        title="Informe de Mantenimiento de Equipos",
+        category="mantenimiento",
+        fields=[
+            FormField(id="equipo", name="equipo", label="Equipo", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="tipo_mantenimiento", name="tipo", label="Tipo", type=FieldType.SELECT, required=True, order=2,
+                      options=[{"value": "preventivo", "label": "Preventivo"}, {"value": "correctivo", "label": "Correctivo"}]),
+            FormField(id="fecha", name="fecha", label="Fecha Realización", type=FieldType.DATE, required=True, order=3, default_value="today"),
+            FormField(id="descripcion", name="descripcion", label="Descripción del Trabajo", type=FieldType.TEXTAREA, required=True, order=4),
+            FormField(id="repuestos", name="repuestos", label="Repuestos Utilizados", type=FieldType.TEXTAREA, order=5),
+            FormField(id="proximo_mantenimiento", name="proximo", label="Fecha Próximo Mantenimiento", type=FieldType.DATE, required=True, order=6)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "REGISTRO_MANTENIMIENTO"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 12. GESTIÓN DE RIESGOS
+# ============================================================
+
+def get_evaluacion_riesgo_form() -> SmartFormDefinition:
+    """Risk Assessment Form"""
+    return SmartFormDefinition(
+        id="form_evaluacion_riesgo",
+        name="Evaluación de Riesgo",
+        title="Evaluación y Valoración de Riesgos",
+        category="gestion",
+        fields=[
+            FormField(id="proceso", name="proceso", label="Proceso", type=FieldType.TEXT, required=True, order=1),
+            FormField(id="actividad", name="actividad", label="Actividad", type=FieldType.TEXT, required=True, order=2),
+            FormField(id="peligro", name="peligro", label="Peligro Identificado", type=FieldType.TEXTAREA, required=True, order=3),
+            FormField(id="nivel_riesgo", name="nivel", label="Nivel de Riesgo", type=FieldType.SELECT, required=True, order=4,
+                      options=[{"value": "bajo", "label": "Bajo"}, {"value": "medio", "label": "Medio"}, {"value": "alto", "label": "Alto"}, {"value": "critico", "label": "Crítico"}]),
+            FormField(id="controles", name="controles", label="Controles Existentes", type=FieldType.TEXTAREA, required=True, order=5),
+            FormField(id="nuevos_controles", name="nuevos_controles", label="Nuevos Controles Propuestos", type=FieldType.TEXTAREA, required=True, order=6)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "EVALUACION_RIESGO_DETALLE"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
+    )
+
+
+# ============================================================
+# 13. COMITÉS (COPASST / CONVIVENCIA)
+# ============================================================
+
+def get_acta_reunion_form() -> SmartFormDefinition:
+    """Meeting Minutes Form"""
+    return SmartFormDefinition(
+        id="form_acta_reunion",
+        name="Acta de Reunión",
+        title="Acta de Reunión de Comité",
+        category="gestion",
+        fields=[
+            FormField(id="comite", name="comite", label="Comité", type=FieldType.SELECT, required=True, order=1,
+                      options=[{"value": "copasst", "label": "COPASST"}, {"value": "convivencia", "label": "Convivencia Laboral"}, {"value": "brigada", "label": "Brigada de Emergencia"}]),
+            FormField(id="fecha", name="fecha", label="Fecha", type=FieldType.DATE, required=True, order=2, default_value="today"),
+            FormField(id="asistentes", name="asistentes", label="Asistentes", type=FieldType.EMPLOYEE_SELECT, required=True, order=3, grid_columns=12),
+            FormField(id="temas", name="temas", label="Temas Tratados", type=FieldType.TEXTAREA, required=True, order=4),
+            FormField(id="compromisos", name="compromisos", label="Compromisos y Tareas", type=FieldType.TEXTAREA, required=True, order=5),
+            FormField(id="proxima_reunion", name="proxima", label="Fecha Próxima Reunión", type=FieldType.DATE, required=True, order=6)
+        ],
+        on_submit=[
+            WorkflowAction(action="save_to_table", params={"table": "ACTA_REUNION"}, order=1),
+            WorkflowAction(action="complete_task", params={}, order=2)
+        ]
     )
