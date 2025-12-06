@@ -67,5 +67,6 @@ logs/
 Thumbs.db
 .DS_Store
 estructura_carpetas.json
-tree.py 
+tree.py
  
+ BD/InsertRoles.sql
