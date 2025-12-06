@@ -76,6 +76,12 @@ class TaskCoordinatorAgent:
         # 4. Escalar tareas críticas
         actions.extend(self._escalate_critical_tasks())
         
+        # 5. Monitorear alertas del Dashboard (NUEVO)
+        actions.extend(self._monitor_dashboard_alerts())
+        
+        # 6. Corrección Proactiva de Brechas (NUEVO - Solicitud Usuario)
+        actions.extend(self._correct_compliance_gaps())
+        
         return actions
     
     def _handle_overdue_tasks(self) -> List[Dict]:
@@ -239,10 +245,527 @@ class TaskCoordinatorAgent:
         
         return actions
 
+    def _get_responsible_for_alert(self, message: str, tipo: str) -> int:
+        """
+        Determina el responsable basado en el contenido de la alerta y la normativa.
+        Retorna el ID del empleado.
+        """
+        # 1. Definir mapeo de Palabras Clave -> Rol Responsable
+        routing_rules = [
+            # COPASST
+            {"keywords": ["COPASST", "Comité Paritario", "Acta Reunión"], "role": "Presidente COPASST"},
+            # Convivencia
+            {"keywords": ["Convivencia", "Acoso", "Conflicto"], "role": "Comité Convivencia"}, # Asignar a un miembro
+            # Emergencias / Brigadas
+            {"keywords": ["Brigada", "Simulacro", "Extintor", "Botiquín", "Emergencia"], "role": "Líder de Brigada"},
+            {"keywords": ["Primeros Auxilios"], "role": "Brigadista Primeros Auxilios"},
+            {"keywords": ["Evacuación"], "role": "Brigadista Evacuación"},
+            # Auditoría
+            {"keywords": ["Auditoría", "Hallazgo", "No Conformidad"], "role": "Auditor Interno"},
+            # Investigación Accidentes
+            {"keywords": ["Accidente", "Incidente", "Investigación"], "role": "Investigador de Accidentes"},
+            # Alta Dirección
+            {"keywords": ["Presupuesto", "Revisión Dirección", "Política"], "role": "Gerente General"},
+        ]
+        
+        target_role = "Coordinador SST" # Default
+        
+        # 2. Buscar coincidencia
+        message_lower = message.lower()
+        tipo_lower = tipo.lower()
+        
+        for rule in routing_rules:
+            for keyword in rule["keywords"]:
+                if keyword.lower() in message_lower or keyword.lower() in tipo_lower:
+                    target_role = rule["role"]
+                    break
+            if target_role != "Coordinador SST":
+                break
+        
+        # 3. Buscar ID del empleado con ese rol
+        # Priorizamos el rol específico, si no existe, fallback al Coordinador
+        query = text("""
+            SELECT TOP 1 e.id_empleado 
+            FROM EMPLEADO e
+            JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+            JOIN ROL r ON er.id_rol = r.id_rol
+            WHERE r.NombreRol = :role
+            AND e.Estado = 1
+        """)
+        
+        responsible_id = self.db.execute(query, {"role": target_role}).scalar()
+        
+        if not responsible_id:
+            # Si no se encuentra el rol específico (ej. no hay Presidente COPASST asignado),
+            # buscar al Coordinador SST como respaldo.
+            fallback_query = text("""
+                SELECT TOP 1 e.id_empleado 
+                FROM EMPLEADO e
+                JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                JOIN ROL r ON er.id_rol = r.id_rol
+                WHERE r.NombreRol IN ('Coordinador SST', 'Responsable SG-SST', 'Director SST')
+                AND e.Estado = 1
+                ORDER BY r.id_rol DESC
+            """)
+            responsible_id = self.db.execute(fallback_query).scalar()
+            
+            if not responsible_id:
+                responsible_id = 1 # Fallback final (Admin)
+                
+        return responsible_id
 
-# ============================================================
-# 2. AGENTE PLANIFICADOR (Planning Agent)
-# ============================================================
+    def _monitor_dashboard_alerts(self) -> List[Dict]:
+        """
+        Monitorea alertas activas en VW_Dashboard_Alertas y toma acciones.
+        Integra la vista de alertas con la lógica de agentes.
+        """
+        actions = []
+        
+        try:
+            # Consultar la vista
+            query = text("SELECT * FROM VW_Dashboard_Alertas ORDER BY Prioridad DESC")
+            alerts = self.db.execute(query).fetchall()
+            
+            for alert in alerts:
+                # Mapeo de columnas basado en la definición de la vista proporcionada
+                alert_data = dict(alert._mapping)
+                
+                tipo = alert_data.get('Tipo', 'General')
+                mensaje = alert_data.get('Mensaje', 'Alerta sin descripción')
+                prioridad = alert_data.get('Prioridad', 'Media')
+                
+                # LÓGICA DE ENRUTAMIENTO INTELIGENTE (Normativa)
+                assigned_to = self._get_responsible_for_alert(mensaje, tipo)
+                
+                # Lógica de acción basada en prioridad
+                if prioridad == 'Crítica':
+                    # Para alertas críticas: Crear Tarea + Escalar
+                    description = f"Atender alerta crítica: {mensaje}"
+                    
+                    # Insertar Tarea
+                    insert_sql = text("""
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                        VALUES (:resp, :desc, DATEADD(day, 1, GETDATE()), 'Crítica', 'Pendiente', 'Gestión Alerta')
+                    """)
+                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description})
+                    self.db.commit()
+
+                    actions.append({
+                        "action": AgentAction.ESCALATE,
+                        "reason": f"Alerta Crítica de Dashboard: {mensaje}",
+                        "priority": Priority.CRITICAL,
+                        "details": alert_data
+                    })
+                    
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "description": description,
+                        "assigned_to": assigned_to,
+                        "priority": Priority.CRITICAL,
+                        "tipo": "Corrección Inmediata"
+                    })
+                    
+                elif prioridad == 'Alta':
+                    # Para alertas altas: Crear Tarea + Notificar
+                    description = f"Gestionar alerta: {mensaje}"
+                    
+                    # Insertar Tarea
+                    insert_sql = text("""
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                        VALUES (:resp, :desc, DATEADD(day, 3, GETDATE()), 'Alta', 'Pendiente', 'Gestión Alerta')
+                    """)
+                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description})
+                    self.db.commit()
+
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "description": description,
+                        "assigned_to": assigned_to,
+                        "priority": Priority.HIGH,
+                        "tipo": "Gestión de Alerta"
+                    })
+                    
+                    actions.append({
+                        "action": AgentAction.SEND_ALERT,
+                        "message": f"Nueva alerta alta en dashboard: {mensaje}",
+                        "priority": Priority.HIGH
+                    })
+                    
+                else:
+                    # Para otras: Solo registrar/sugerir tarea (sin insertar en BD para no saturar)
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "description": f"Revisar: {mensaje}",
+                        "priority": Priority.MEDIUM,
+                        "tipo": "Revisión Rutinaria"
+                    })
+                    
+        except Exception as e:
+            # Log error but don't crash the agent
+            print(f"Error monitoring dashboard alerts: {e}")
+            
+        return actions
+
+    def _correct_compliance_gaps(self) -> List[Dict]:
+        """
+        Acción Proactiva: Ejecuta SPs de reporte y asigna tareas correctivas automáticamente.
+        Garantiza que el agente 'decide corregir' asignando tareas específicas.
+        
+        GAPS (Brechas de Cumplimiento):
+        1. EMOs vencidos/faltantes
+        2. Capacitaciones obligatorias pendientes
+        3. Inspecciones vencidas
+        4. Reuniones COPASST pendientes
+        """
+        actions = []
+        
+        try:
+            # ========================================
+            # GAP 1: EMOs Vencidos o Faltantes
+            # ========================================
+            query_emo = text("""
+                SELECT 
+                    E.id_empleado,
+                    E.Nombre + ' ' + E.Apellidos AS NombreCompleto,
+                    E.Correo,
+                    CASE 
+                        WHEN EM.id_examen IS NULL THEN 'Sin EMO Registrado'
+                        WHEN EM.Fecha_Vencimiento < CAST(GETDATE() AS DATE) THEN 'EMO Vencido'
+                    END AS Estado
+                FROM EMPLEADO E
+                LEFT JOIN (
+                    SELECT EM1.id_empleado, EM1.id_examen, EM1.Fecha_Vencimiento
+                    FROM EXAMEN_MEDICO EM1
+                    WHERE EM1.Tipo_Examen = 'Periodico'
+                    AND EM1.id_examen = (
+                        SELECT TOP 1 id_examen FROM EXAMEN_MEDICO 
+                        WHERE id_empleado = EM1.id_empleado AND Tipo_Examen = 'Periodico'
+                        ORDER BY Fecha_Realizacion DESC
+                    )
+                ) EM ON E.id_empleado = EM.id_empleado
+                WHERE E.Estado = 1
+                AND (EM.id_examen IS NULL OR EM.Fecha_Vencimiento < CAST(GETDATE() AS DATE))
+            """)
+            
+            employees_emo = self.db.execute(query_emo).fetchall()
+            
+            for emp in employees_emo:
+                description = f"Realizar Examen Médico Ocupacional ({emp.Estado})"
+                
+                # Verificar duplicados
+                check_task = text("""
+                    SELECT COUNT(*) FROM TAREA 
+                    WHERE id_empleado_responsable = :emp_id 
+                    AND Descripcion LIKE :desc 
+                    AND Estado IN ('Pendiente', 'En Curso')
+                """)
+                exists = self.db.execute(check_task, {"emp_id": emp.id_empleado, "desc": f"%Examen Médico%"}).scalar()
+                
+                if exists == 0:
+                    insert_task = text("""
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                        VALUES (:emp_id, :desc, DATEADD(day, 15, GETDATE()), 'Alta', 'Pendiente', 'Salud')
+                    """)
+                    self.db.execute(insert_task, {"emp_id": emp.id_empleado, "desc": description})
+                    self.db.commit()
+                    
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "gap_type": "EMO",
+                        "recipient": emp.NombreCompleto,
+                        "task": description,
+                        "status": "ASSIGNED_AUTOMATICALLY"
+                    })
+
+            # ========================================
+            # GAP 2: Capacitaciones Obligatorias Pendientes
+            # ========================================
+            # Buscar capacitaciones programadas que no se han realizado
+            query_cap = text("""
+                SELECT 
+                    c.id_capacitacion,
+                    c.Tema,
+                    c.Fecha_Programada,
+                    DATEDIFF(DAY, c.Fecha_Programada, GETDATE()) AS DiasVencidos
+                FROM CAPACITACION c
+                WHERE c.Estado = 'Programada'
+                AND c.Fecha_Programada < GETDATE()
+            """)
+            
+            capacitaciones_pendientes = self.db.execute(query_cap).fetchall()
+            
+            # Buscar al Coordinador SST para asignarle la tarea
+            coord_query = text("""
+                SELECT TOP 1 e.id_empleado 
+                FROM EMPLEADO e
+                JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                JOIN ROL r ON er.id_rol = r.id_rol
+                WHERE r.NombreRol IN ('Coordinador SST', 'Director SST')
+                AND e.Estado = 1
+            """)
+            coord_id = self.db.execute(coord_query).scalar() or 1
+            
+            for cap in capacitaciones_pendientes:
+                description = f"Ejecutar capacitación pendiente: {cap.Tema} (vencida hace {cap.DiasVencidos} días)"
+                
+                # Verificar duplicados
+                check_task = text("""
+                    SELECT COUNT(*) FROM TAREA 
+                    WHERE id_empleado_responsable = :coord_id 
+                    AND Descripcion LIKE :desc 
+                    AND Estado IN ('Pendiente', 'En Curso')
+                """)
+                exists = self.db.execute(check_task, {"coord_id": coord_id, "desc": f"%{cap.Tema}%"}).scalar()
+                
+                if exists == 0:
+                    insert_task = text("""
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                        VALUES (:coord_id, :desc, DATEADD(day, 7, GETDATE()), 'Alta', 'Pendiente', 'Capacitación')
+                    """)
+                    self.db.execute(insert_task, {"coord_id": coord_id, "desc": description})
+                    self.db.commit()
+                    
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "gap_type": "CAPACITACION",
+                        "task": description,
+                        "assigned_to": coord_id,
+                        "status": "ASSIGNED_AUTOMATICALLY"
+                    })
+
+            # ========================================
+            # GAP 3: Reuniones COPASST Pendientes
+            # ========================================
+            # Verificar si hay reunión mensual del COPASST
+            query_copasst = text("""
+                SELECT COUNT(*) 
+                FROM REUNION_COMITE rc
+                JOIN COMITE c ON rc.id_comite = c.id_comite
+                WHERE c.Tipo_Comite = 'COPASST'
+                AND MONTH(rc.Fecha_Reunion) = MONTH(GETDATE())
+                AND YEAR(rc.Fecha_Reunion) = YEAR(GETDATE())
+            """)
+            
+            reuniones_mes = self.db.execute(query_copasst).scalar()
+            
+            if reuniones_mes == 0:
+                # No hay reunión este mes, asignar al Presidente COPASST
+                pres_query = text("""
+                    SELECT TOP 1 e.id_empleado 
+                    FROM EMPLEADO e
+                    JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                    JOIN ROL r ON er.id_rol = r.id_rol
+                    WHERE r.NombreRol = 'Presidente COPASST'
+                    AND e.Estado = 1
+                """)
+                pres_id = self.db.execute(pres_query).scalar() or coord_id
+                
+                description = f"Programar reunión mensual COPASST - {datetime.now().strftime('%B %Y')}"
+                
+                # Verificar duplicados
+                check_task = text("""
+                    SELECT COUNT(*) FROM TAREA 
+                    WHERE id_empleado_responsable = :pres_id 
+                    AND Descripcion LIKE :desc 
+                    AND Estado IN ('Pendiente', 'En Curso')
+                """)
+                exists = self.db.execute(check_task, {"pres_id": pres_id, "desc": f"%reunión mensual COPASST%"}).scalar()
+                
+                if exists == 0:
+                    insert_task = text("""
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                        VALUES (:pres_id, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité')
+                    """)
+                    self.db.execute(insert_task, {"pres_id": pres_id, "desc": description})
+                    self.db.commit()
+                    
+                    actions.append({
+                        "action": AgentAction.CREATE_TASK,
+                        "gap_type": "COPASST",
+                        "task": description,
+                        "assigned_to": pres_id,
+                        "status": "ASSIGNED_AUTOMATICALLY"
+                    })
+
+            # ========================================
+            # GAP 4: Inspecciones de Seguridad Vencidas
+            # ========================================
+            # Schema: id_inspeccion, Tipo_Inspeccion, Area_Inspeccionada, Fecha_Programada, Estado
+            query_inspeccion = text("""
+                SELECT id_inspeccion, Tipo_Inspeccion, Area_Inspeccionada, Fecha_Programada
+                FROM INSPECCION
+                WHERE Estado = 'Programada' 
+                AND Fecha_Programada < CAST(GETDATE() AS DATE)
+            """)
+            try:
+                inspecciones = self.db.execute(query_inspeccion).fetchall()
+                for insp in inspecciones:
+                    description = f"Realizar inspección de seguridad: {insp.Tipo_Inspeccion} en {insp.Area_Inspeccionada} (vencida)"
+                    
+                    # Responsable: Buscar rol "Inspector SST" o "Vigía SST", fallback Coordinador
+                    insp_query = text("""
+                        SELECT TOP 1 e.id_empleado FROM EMPLEADO e
+                        JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                        JOIN ROL r ON er.id_rol = r.id_rol
+                        WHERE r.NombreRol IN ('Inspector SST', 'Vigía SST') AND e.Estado = 1
+                    """)
+                    assigned_to = self.db.execute(insp_query).scalar() or coord_id
+                    
+                    # Evitar duplicados
+                    check = text("""
+                        SELECT COUNT(*) FROM TAREA WHERE id_empleado_responsable = :emp AND Descripcion LIKE :desc AND Estado IN ('Pendiente','En Curso')
+                    """)
+                    exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{insp.Tipo_Inspeccion}%"}).scalar()
+                    if not exists:
+                        insert = text("""
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Alta', 'Pendiente', 'Inspección')
+                        """)
+                        self.db.execute(insert, {"emp": assigned_to, "desc": description})
+                        self.db.commit()
+                        actions.append({
+                            "action": AgentAction.CREATE_TASK,
+                            "gap_type": "INSPECCION",
+                            "description": description,
+                            "assigned_to": assigned_to,
+                            "priority": Priority.HIGH,
+                            "tipo": "Gestión Inspección"
+                        })
+            except Exception as e:
+                print(f"Error checking Inspections gap: {e}")
+
+            # ========================================
+            # GAP 5: Mantenimiento de Equipos Vencido
+            # ========================================
+            # Schema: id_equipo, Nombre, FechaProximoMantenimiento, Estado
+            query_mantenimiento = text("""
+                SELECT id_equipo, Nombre, FechaProximoMantenimiento
+                FROM EQUIPO
+                WHERE Estado = 'Activo'
+                AND FechaProximoMantenimiento < CAST(GETDATE() AS DATE)
+            """)
+            try:
+                equipos = self.db.execute(query_mantenimiento).fetchall()
+                for eq in equipos:
+                    description = f"Programar mantenimiento del equipo: {eq.Nombre} (vencido el {eq.FechaProximoMantenimiento})"
+                    
+                    # Responsable: Responsable de Mantenimiento (rol "Responsable Mantenimiento")
+                    maint_query = text("""
+                        SELECT TOP 1 e.id_empleado FROM EMPLEADO e
+                        JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                        JOIN ROL r ON er.id_rol = r.id_rol
+                        WHERE r.NombreRol = 'Responsable Mantenimiento' AND e.Estado = 1
+                    """)
+                    assigned_to = self.db.execute(maint_query).scalar() or coord_id
+                    
+                    check = text("""
+                        SELECT COUNT(*) FROM TAREA WHERE id_empleado_responsable = :emp AND Descripcion LIKE :desc AND Estado IN ('Pendiente','En Curso')
+                    """)
+                    exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{eq.Nombre}%"}).scalar()
+                    if not exists:
+                        insert = text("""
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                            VALUES (:emp, :desc, DATEADD(day, 7, GETDATE()), 'Media', 'Pendiente', 'Mantenimiento')
+                        """)
+                        self.db.execute(insert, {"emp": assigned_to, "desc": description})
+                        self.db.commit()
+                        actions.append({
+                            "action": AgentAction.CREATE_TASK,
+                            "gap_type": "MANTENIMIENTO",
+                            "description": description,
+                            "assigned_to": assigned_to,
+                            "priority": Priority.MEDIUM,
+                            "tipo": "Mantenimiento Equipo"
+                        })
+            except Exception as e:
+                print(f"Error checking Maintenance gap: {e}")
+
+            # ========================================
+            # GAP 6: Evaluaciones de Riesgo Pendientes
+            # ========================================
+            # Using new table EVALUACION_RIESGO
+            query_riesgo = text("""
+                SELECT id_evaluacion, Descripcion, Fecha_Programada
+                FROM EVALUACION_RIESGO
+                WHERE Estado = 'Programada' AND Fecha_Programada < CAST(GETDATE() AS DATE)
+            """)
+            try:
+                riesgos = self.db.execute(query_riesgo).fetchall()
+                for ris in riesgos:
+                    description = f"Ejecutar evaluación de riesgo: {ris.Descripcion} (vencida)"
+                    assigned_to = coord_id
+                    check = text("""
+                        SELECT COUNT(*) FROM TAREA WHERE id_empleado_responsable = :emp AND Descripcion LIKE :desc AND Estado IN ('Pendiente','En Curso')
+                    """)
+                    exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{ris.Descripcion}%"}).scalar()
+                    if not exists:
+                        insert = text("""
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                            VALUES (:emp, :desc, DATEADD(day, 10, GETDATE()), 'Alta', 'Pendiente', 'Evaluación Riesgo')
+                        """)
+                        self.db.execute(insert, {"emp": assigned_to, "desc": description})
+                        self.db.commit()
+                        actions.append({
+                            "action": AgentAction.CREATE_TASK,
+                            "gap_type": "RIESGO",
+                            "description": description,
+                            "assigned_to": assigned_to,
+                            "priority": Priority.HIGH,
+                            "tipo": "Evaluación de Riesgo"
+                        })
+            except Exception as e:
+                # Table might not exist yet if script wasn't run
+                pass
+
+            # ========================================
+            # GAP 7: Reuniones de Comité de Convivencia Mensuales
+            # ========================================
+            # Schema: REUNION_COMITE (TipoReunion, FechaReunion)
+            query_convivencia = text("""
+                SELECT COUNT(*) FROM REUNION_COMITE
+                WHERE TipoReunion = 'Convivencia'
+                AND MONTH(FechaReunion) = MONTH(GETDATE())
+                AND YEAR(FechaReunion) = YEAR(GETDATE())
+            """)
+            try:
+                reuniones = self.db.execute(query_convivencia).scalar()
+                if reuniones == 0:
+                    # Asignar al presidente del Comité de Convivencia (rol "Presidente Comité Convivencia")
+                    pres_query = text("""
+                        SELECT TOP 1 e.id_empleado FROM EMPLEADO e
+                        JOIN EMPLEADO_ROL er ON e.id_empleado = er.id_empleado
+                        JOIN ROL r ON er.id_rol = r.id_rol
+                        WHERE r.NombreRol = 'Presidente Comité Convivencia' AND e.Estado = 1
+                    """)
+                    pres_id = self.db.execute(pres_query).scalar() or coord_id
+                    description = f"Programar reunión mensual del Comité de Convivencia - {datetime.now().strftime('%B %Y')}"
+                    check = text("""
+                        SELECT COUNT(*) FROM TAREA WHERE id_empleado_responsable = :emp AND Descripcion LIKE :desc AND Estado IN ('Pendiente','En Curso')
+                    """)
+                    exists = self.db.execute(check, {"emp": pres_id, "desc": f"%reunión mensual del Comité de Convivencia%"}).scalar()
+                    if not exists:
+                        insert = text("""
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité')
+                        """)
+                        self.db.execute(insert, {"emp": pres_id, "desc": description})
+                        self.db.commit()
+                        actions.append({
+                            "action": AgentAction.CREATE_TASK,
+                            "gap_type": "CONVIVENCIA",
+                            "description": description,
+                            "assigned_to": pres_id,
+                            "priority": Priority.CRITICAL,
+                            "tipo": "Reunión Comité Convivencia"
+                        })
+            except Exception as e:
+                print(f"Error checking Convivencia gap: {e}")
+
+        except Exception as e:
+            print(f"Error in proactive correction: {e}")
+            
+        return actions
+
 
 class PlanningAgent:
     """
