@@ -173,16 +173,32 @@ async def submit_form(
         # 2. Save to database
         submission_id = save_form_submission(db, form_id, submission, current_user.Id_Usuario)
         
-        # 3. Execute workflow actions (TEMPORARILY DISABLED FOR DEBUGGING)
-        # TODO: Re-enable after fixing the error
+        # 3. Execute workflow actions with result tracking
+        workflow_results = {}
+        workflow_success = True
+        workflow_error = None
+        
         try:
             for action in sorted(form_def.on_submit, key=lambda x: x.order):
                 logger.info(f"Executing workflow action: {action.action}")
-                execute_workflow_action(db, action, submission.data, current_user, submission.context)
-        except Exception as workflow_error:
+                execute_workflow_action(
+                    db, action, submission.data,
+                    current_user, submission.context,
+                    workflow_results
+                )
+        except Exception as e:
+            workflow_success = False
+            workflow_error = str(e)
             logger.error(f"Workflow execution failed: {workflow_error}")
-            # Don't fail the submission if workflow fails
-            pass
+            # Rollback database changes if workflow fails
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "message": f"Error en flujo de trabajo: {workflow_error}",
+                    "workflow_results": workflow_results
+                }
+            )
         
         # 4. Generate PDF if configured
         if form_def.generate_pdf:
@@ -195,9 +211,11 @@ async def submit_form(
             pass
         
         return {
-            "message": "Form submitted successfully",
+            "success": True,
+            "message": "Formulario enviado exitosamente",
             "submission_id": submission_id,
-            "form_id": form_id
+            "form_id": form_id,
+            "workflow_results": workflow_results
         }
         
     except HTTPException:
@@ -410,55 +428,135 @@ def execute_workflow_action(
     action: WorkflowAction,
     form_data: Dict[str, Any],
     current_user: AuthorizedUser,
-    context: Dict[str, Any] = {}
+    context: Dict[str, Any] = {},
+    workflow_results: Dict[str, Any] = None
 ):
-    """Execute a workflow action"""
+    """
+    Execute a workflow action with result tracking.
+    
+    Args:
+        workflow_results: Dict to store results of each action for conditional execution
+    """
+    if workflow_results is None:
+        workflow_results = {}
+    
     try:
         if action.action == "save_to_table":
-            # Save data to specified table
-            save_to_table(db, action.params, form_data)
+            # Save data to specified table and capture result
+            result = save_to_table(db, action.params, form_data)
+            workflow_results["save_to_table"] = result
+            
+            # If save failed, raise exception to stop workflow
+            if not result.get("success"):
+                error_msg = result.get("error", "Unknown error")
+                raise Exception(f"Failed to save data: {error_msg}")
         
         elif action.action == "create_task":
             # Create a task
             create_task_from_form(db, action.params, form_data, current_user)
+            workflow_results["create_task"] = {"success": True}
         
         elif action.action == "send_notification":
             # Send notification
             send_notification(action.params, form_data)
+            workflow_results["send_notification"] = {"success": True}
         
         elif action.action == "update_indicators":
             # Update indicators
             update_indicators(db, action.params)
+            workflow_results["update_indicators"] = {"success": True}
         
         elif action.action == "run_sp":
             # Run stored procedure
             run_stored_procedure(db, action.params, form_data)
+            workflow_results["run_sp"] = {"success": True}
         
         elif action.action == "ai_analyze":
             # AI analysis
             ai_analyze(action.params, form_data)
+            workflow_results["ai_analyze"] = {"success": True}
 
         elif action.action == "complete_task":
             # Complete the task linked to this form
+            # Check if previous actions (especially save_to_table) succeeded
+            require_previous_success = action.params.get("require_previous_success", True)
+            
+            if require_previous_success:
+                save_result = workflow_results.get("save_to_table", {})
+                if not save_result.get("success"):
+                    logger.warning("⚠️ Skipping task completion - data save failed or not executed")
+                    workflow_results["complete_task"] = {
+                        "success": False,
+                        "skipped": True,
+                        "reason": "Data save failed or not executed"
+                    }
+                    return
+            
             complete_task_action(db, context, current_user)
+            workflow_results["complete_task"] = {"success": True}
         
     except Exception as e:
-        logger.error(f"Error executing workflow action {action.action}: {e}")
-        # Don't fail the entire submission if one action fails
-        pass
+        error_msg = str(e)
+        logger.error(f"Error executing workflow action {action.action}: {error_msg}")
+        workflow_results[action.action] = {
+            "success": False,
+            "error": error_msg
+        }
+        # Re-raise to stop workflow execution
+        raise
 
 
-def save_to_table(db: Session, params: Dict[str, Any], form_data: Dict[str, Any]):
-    """Save form data to a database table"""
+
+def save_to_table(
+    db: Session,
+    params: Dict[str, Any],
+    form_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Save form data to database with validation.
+    
+    Returns:
+        Dict with keys:
+        - success (bool): Whether the operation succeeded
+        - inserted_id (int, optional): ID of inserted record
+        - table (str): Table name
+        - error (str, optional): Error message if failed
+    """
     try:
         table_name = params.get("table")
         mapping = params.get("mapping", {})
+        return_id = params.get("return_id", False)
         
         if not table_name:
             logger.error("No table specified in save_to_table action")
-            return
+            return {
+                "success": False,
+                "error": "Missing table configuration"
+            }
         
-        # Build INSERT query
+        if not mapping:
+            logger.warning(f"No mapping specified for table {table_name}, using form fields directly")
+            # Fallback: use form_data keys as column names
+            mapping = {k: k for k in form_data.keys()}
+        
+        # 1. Validate that all mapped fields exist in form_data
+        missing_fields = []
+        for db_col, form_field in mapping.items():
+            # Skip literal values (enclosed in quotes)
+            if isinstance(form_field, str) and form_field.startswith("'") and form_field.endswith("'"):
+                continue
+            if form_field not in form_data:
+                missing_fields.append(form_field)
+        
+        if missing_fields:
+            error_msg = f"Missing required fields: {', '.join(missing_fields)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+        
+        # 2. Build INSERT query
         columns = []
         values = []
         
@@ -472,26 +570,79 @@ def save_to_table(db: Session, params: Dict[str, Any], form_data: Dict[str, Any]
                 # Get value from form data
                 values.append(form_data.get(form_field))
         
-        # Build parameterized query
+        # 3. Build parameterized query with SCOPE_IDENTITY() if needed
         placeholders = ", ".join([f":{i}" for i in range(len(values))])
-        query = f"""
-            INSERT INTO {table_name} ({', '.join(columns)})
-            VALUES ({placeholders})
-        """
-        
-        # Create params dict
         params_dict = {str(i): val for i, val in enumerate(values)}
         
-        # Execute
-        db.execute(text(query), params_dict)
+        if return_id:
+            query = f"""
+                INSERT INTO {table_name} ({', '.join(columns)})
+                VALUES ({placeholders});
+                SELECT SCOPE_IDENTITY() AS inserted_id;
+            """
+        else:
+            query = f"""
+                INSERT INTO {table_name} ({', '.join(columns)})
+                VALUES ({placeholders});
+            """
+        
+        # 4. Execute query
+        result = db.execute(text(query), params_dict)
+        
+        inserted_id = None
+        if return_id:
+            row = result.fetchone()
+            if row:
+                inserted_id = int(row.inserted_id)
+        
+        # 5. Commit transaction
         db.commit()
         
-        logger.info(f"Saved form data to table {table_name}")
+        # 6. Verify insertion if ID was returned
+        if return_id and inserted_id:
+            # Try to find primary key column (common patterns)
+            pk_candidates = [
+                f"id_{table_name.lower()}",
+                f"Id_{table_name}",
+                "id",
+                "Id"
+            ]
+            
+            verified = False
+            for pk_col in pk_candidates:
+                try:
+                    verify_query = f"SELECT COUNT(*) as count FROM {table_name} WHERE {pk_col} = :id"
+                    verify_result = db.execute(text(verify_query), {"id": inserted_id})
+                    count = verify_result.fetchone().count
+                    
+                    if count > 0:
+                        verified = True
+                        break
+                except:
+                    continue
+            
+            if not verified:
+                logger.warning(f"Could not verify insertion for table {table_name}, ID {inserted_id}")
+        
+        logger.info(f"✅ Successfully saved to {table_name}" + (f", ID: {inserted_id}" if inserted_id else ""))
+        
+        return {
+            "success": True,
+            "inserted_id": inserted_id,
+            "table": table_name
+        }
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error saving to table: {e}")
-        raise
+        error_msg = str(e)
+        logger.error(f"❌ Error saving to table {table_name}: {error_msg}")
+        
+        return {
+            "success": False,
+            "error": error_msg,
+            "table": table_name
+        }
+
 
 
 def create_task_from_form(
