@@ -245,6 +245,92 @@ class TaskCoordinatorAgent:
         
         return actions
 
+    def _get_form_for_task_type(self, task_type: str, description: str = "") -> str:
+        """
+        Mapea el tipo de tarea a un formulario específico.
+        Retorna el ID del formulario que debe completarse para cerrar la tarea.
+        """
+        # Normalizar para búsqueda
+        task_lower = task_type.lower()
+        desc_lower = description.lower()
+        
+        # MAPEO DIRECTO POR TIPO DE TAREA
+        form_mapping = {
+            # Salud
+            "salud": "form_examen_medico",
+            "examen médico": "form_examen_medico",
+            "emo": "form_examen_medico",
+            
+            # Eventos
+            "accidente": "form_accidente_trabajo",
+            "incidente": "form_incidente",
+            "investigación de accidente": "form_accidente_trabajo",
+            "investigación de incidente": "form_incidente",
+            "enfermedad laboral": "form_enfermedad_laboral",
+            
+            # Inspecciones
+            "inspección": "form_inspeccion_locativa",  # Default
+            "inspeccion extintor": "form_inspeccion_extintor",
+            "inspeccion botiquin": "form_inspeccion_botiquin",
+            "inspeccion locativa": "form_inspeccion_locativa",
+            
+            # Capacitación
+            "capacitación": "form_registro_capacitacion",
+            "capacitacion": "form_registro_capacitacion",
+            "entrenamiento": "form_registro_capacitacion",
+            
+            # Comités
+            "comité": "form_acta_reunion",
+            "copasst": "form_acta_reunion",
+            "convivencia": "form_acta_reunion",
+            "reunión": "form_acta_reunion",
+            
+            # Mantenimiento
+            "mantenimiento": "form_registro_mantenimiento",
+            
+            # Gestión
+            "acción correctiva": "form_accion_correctiva",
+            "accion correctiva": "form_accion_correctiva",
+            "evaluación de riesgo": "form_evaluacion_riesgo",
+            "evaluacion de riesgo": "form_evaluacion_riesgo",
+            
+            # EPP
+            "epp": "form_entrega_epp",
+            "elementos de protección": "form_entrega_epp",
+            
+            # Permisos
+            "permiso alturas": "form_permiso_alturas",
+            "trabajo en alturas": "form_permiso_alturas",
+        }
+        
+        # 1. Búsqueda exacta por tipo
+        for key, form_id in form_mapping.items():
+            if key in task_lower:
+                return form_id
+        
+        # 2. Búsqueda en descripción (keywords)
+        if "extintor" in desc_lower:
+            return "form_inspeccion_extintor"
+        elif "botiquin" in desc_lower or "botiquín" in desc_lower:
+            return "form_inspeccion_botiquin"
+        elif "locativa" in desc_lower or "instalaciones" in desc_lower:
+            return "form_inspeccion_locativa"
+        elif "accidente" in desc_lower:
+            return "form_accidente_trabajo"
+        elif "incidente" in desc_lower:
+            return "form_incidente"
+        elif "capacitación" in desc_lower or "capacitacion" in desc_lower:
+            return "form_registro_capacitacion"
+        elif "examen" in desc_lower or "médico" in desc_lower or "medico" in desc_lower:
+            return "form_examen_medico"
+        elif "mantenimiento" in desc_lower:
+            return "form_registro_mantenimiento"
+        elif "reunión" in desc_lower or "reunion" in desc_lower or "acta" in desc_lower:
+            return "form_acta_reunion"
+        
+        # 3. Default: None (tarea sin formulario requerido)
+        return None
+
     def _get_responsible_for_alert(self, message: str, tipo: str) -> int:
         """
         Determina el responsable basado en el contenido de la alerta y la normativa.
@@ -331,23 +417,42 @@ class TaskCoordinatorAgent:
                 alert_data = dict(alert._mapping)
                 
                 tipo = alert_data.get('Tipo', 'General')
-                mensaje = alert_data.get('Mensaje', 'Alerta sin descripción')
+                mensaje = alert_data.get('Mensaje')
+                if not mensaje or mensaje == 'Alerta sin descripción':
+                    continue
+
                 prioridad = alert_data.get('Prioridad', 'Media')
                 
                 # LÓGICA DE ENRUTAMIENTO INTELIGENTE (Normativa)
                 assigned_to = self._get_responsible_for_alert(mensaje, tipo)
                 
+                # Check for duplicate tasks created today
+                description_pattern = f"%{mensaje}%"
+                duplicate_check = text("""
+                    SELECT COUNT(*) FROM TAREA 
+                    WHERE Descripcion LIKE :desc 
+                    AND CAST(Fecha_Creacion AS DATE) = CAST(GETDATE() AS DATE)
+                    AND Estado != 'Anulada'
+                """)
+                is_duplicate = self.db.execute(duplicate_check, {"desc": description_pattern}).scalar()
+                
+                if is_duplicate > 0:
+                    continue
+
                 # Lógica de acción basada en prioridad
                 if prioridad == 'Crítica':
                     # Para alertas críticas: Crear Tarea + Escalar
                     description = f"Atender alerta crítica: {mensaje}"
                     
+                    # Determinar formulario requerido
+                    form_id = self._get_form_for_task_type(tipo, mensaje)
+                    
                     # Insertar Tarea
                     insert_sql = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                        VALUES (:resp, :desc, DATEADD(day, 1, GETDATE()), 'Crítica', 'Pendiente', 'Gestión Alerta')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                        VALUES (:resp, :desc, DATEADD(day, 1, GETDATE()), 'Crítica', 'Pendiente', 'Gestión Alerta', :form_id)
                     """)
-                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description})
+                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description, "form_id": form_id})
                     self.db.commit()
 
                     actions.append({
@@ -369,12 +474,15 @@ class TaskCoordinatorAgent:
                     # Para alertas altas: Crear Tarea + Notificar
                     description = f"Gestionar alerta: {mensaje}"
                     
+                    # Determinar formulario requerido
+                    form_id = self._get_form_for_task_type(tipo, mensaje)
+                    
                     # Insertar Tarea
                     insert_sql = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea)
-                        VALUES (:resp, :desc, DATEADD(day, 3, GETDATE()), 'Alta', 'Pendiente', 'Gestión Alerta')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
+                        VALUES (:resp, :desc, DATEADD(day, 3, GETDATE()), 'Alta', 'Pendiente', 'Gestión Alerta', :form_id)
                     """)
-                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description})
+                    self.db.execute(insert_sql, {"resp": assigned_to, "desc": description, "form_id": form_id})
                     self.db.commit()
 
                     actions.append({
@@ -452,19 +560,28 @@ class TaskCoordinatorAgent:
             for emp in employees_emo:
                 description = f"Realizar Examen Médico Ocupacional ({emp.Estado})"
                 
-                # Verificar duplicados
+                # Verificar duplicados de TAREA
                 check_task = text("""
                     SELECT COUNT(*) FROM TAREA 
                     WHERE id_empleado_responsable = :emp_id 
                     AND Descripcion LIKE :desc 
                     AND Estado IN ('Pendiente', 'En Curso')
                 """)
-                exists = self.db.execute(check_task, {"emp_id": emp.id_empleado, "desc": f"%Examen Médico%"}).scalar()
+                task_exists = self.db.execute(check_task, {"emp_id": emp.id_empleado, "desc": f"%Examen Médico%"}).scalar()
                 
-                if exists == 0:
+                # CRÍTICO: Verificar duplicados de ALERTA para evitar duplicación
+                check_alert = text("""
+                    SELECT COUNT(*) FROM ALERTA 
+                    WHERE Mensaje LIKE :msg 
+                    AND Estado = 'Activa'
+                    AND CAST(FechaCreacion AS DATE) = CAST(GETDATE() AS DATE)
+                """)
+                alert_exists = self.db.execute(check_alert, {"msg": f"%{emp.NombreCompleto}%médico%"}).scalar()
+                
+                if task_exists == 0 and alert_exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                        VALUES (:emp_id, :desc, DATEADD(day, 15, GETDATE()), 'Alta', 'Pendiente', 'Salud', 'form_examen_medico')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                        VALUES (:emp_id, :desc, DATEADD(day, 15, GETDATE()), 'Alta', 'Pendiente', 'Salud', 'form_examen_medico', 1)
                     """)
                     self.db.execute(insert_task, {"emp_id": emp.id_empleado, "desc": description})
                     self.db.commit()
@@ -519,8 +636,8 @@ class TaskCoordinatorAgent:
                 
                 if exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                        VALUES (:coord_id, :desc, DATEADD(day, 7, GETDATE()), 'Alta', 'Pendiente', 'Capacitación', 'form_registro_capacitacion')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                        VALUES (:coord_id, :desc, DATEADD(day, 7, GETDATE()), 'Alta', 'Pendiente', 'Capacitación', 'form_registro_capacitacion', 1)
                     """)
                     self.db.execute(insert_task, {"coord_id": coord_id, "desc": description})
                     self.db.commit()
@@ -573,8 +690,8 @@ class TaskCoordinatorAgent:
                 
                 if exists == 0:
                     insert_task = text("""
-                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                        VALUES (:pres_id, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'meeting-minutes')
+                        INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                        VALUES (:pres_id, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'form_acta_reunion', 1)
                     """)
                     self.db.execute(insert_task, {"pres_id": pres_id, "desc": description})
                     self.db.commit()
@@ -611,6 +728,9 @@ class TaskCoordinatorAgent:
                     """)
                     assigned_to = self.db.execute(insp_query).scalar() or coord_id
                     
+                    # Determinar formulario específico de inspección
+                    form_id = self._get_form_for_task_type(insp.Tipo_Inspeccion, description)
+                    
                     # Evitar duplicados
                     check = text("""
                         SELECT COUNT(*) FROM TAREA WHERE id_empleado_responsable = :emp AND Descripcion LIKE :desc AND Estado IN ('Pendiente','En Curso')
@@ -618,10 +738,10 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{insp.Tipo_Inspeccion}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Alta', 'Pendiente', 'Inspección', 'inspection-general')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Alta', 'Pendiente', 'Inspección', :form_id, 1)
                         """)
-                        self.db.execute(insert, {"emp": assigned_to, "desc": description})
+                        self.db.execute(insert, {"emp": assigned_to, "desc": description, "form_id": form_id})
                         self.db.commit()
                         actions.append({
                             "action": AgentAction.CREATE_TASK,
@@ -664,8 +784,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{eq.Nombre}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                            VALUES (:emp, :desc, DATEADD(day, 7, GETDATE()), 'Media', 'Pendiente', 'Mantenimiento', 'form_registro_mantenimiento')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 7, GETDATE()), 'Media', 'Pendiente', 'Mantenimiento', 'form_registro_mantenimiento', 1)
                         """)
                         self.db.execute(insert, {"emp": assigned_to, "desc": description})
                         self.db.commit()
@@ -700,8 +820,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": assigned_to, "desc": f"%{ris.Descripcion}%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                            VALUES (:emp, :desc, DATEADD(day, 10, GETDATE()), 'Alta', 'Pendiente', 'Evaluación Riesgo', 'form_evaluacion_riesgo')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 10, GETDATE()), 'Alta', 'Pendiente', 'Evaluación Riesgo', 'form_evaluacion_riesgo', 1)
                         """)
                         self.db.execute(insert, {"emp": assigned_to, "desc": description})
                         self.db.commit()
@@ -745,8 +865,8 @@ class TaskCoordinatorAgent:
                     exists = self.db.execute(check, {"emp": pres_id, "desc": f"%reunión mensual del Comité de Convivencia%"}).scalar()
                     if not exists:
                         insert = text("""
-                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario)
-                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'form_acta_reunion')
+                            INSERT INTO TAREA (id_empleado_responsable, Descripcion, Fecha_Vencimiento, Prioridad, Estado, Tipo_Tarea, id_formulario, requiere_formulario)
+                            VALUES (:emp, :desc, DATEADD(day, 5, GETDATE()), 'Crítica', 'Pendiente', 'Comité', 'form_acta_reunion', 1)
                         """)
                         self.db.execute(insert, {"emp": pres_id, "desc": description})
                         self.db.commit()

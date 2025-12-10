@@ -38,6 +38,7 @@ def get_my_tasks(
     """
     Get tasks for the current user.
     Filters by user's email to find assigned tasks.
+    Includes form status (required/submitted).
     """
     try:
         Tarea = get_tarea_model()
@@ -62,9 +63,40 @@ def get_my_tasks(
             Tarea.Fecha_Vencimiento.asc()
         ).all()
         
-        # Convert to dict
+        # Convert to dict and check form status
         result = []
         for task, emp in tasks_data:
+            # Check form submission if task requires form
+            form_submitted = False
+            requires_form = False
+            
+            # Check if column exists (safe handling)
+            if hasattr(task, 'requiere_formulario'):
+                requires_form = bool(task.requiere_formulario)
+            elif hasattr(task, 'id_formulario') and task.id_formulario:
+                # Fallback: if id_formulario is present, assume required
+                requires_form = True
+                
+            if requires_form and hasattr(task, 'id_formulario') and task.id_formulario:
+                # Check if submission exists
+                # We use raw sql or model if available. Using raw SQL for safety against circular imports
+                # NOTE: task_id is stored inside data_json context
+                try:
+                    check_sql = text("""
+                        SELECT COUNT(*) FROM FORM_SUBMISSIONS 
+                        WHERE form_id = :form_id
+                        AND JSON_VALUE(data_json, '$.context.taskId') = CAST(:task_id AS NVARCHAR(50))
+                        AND status = 'Submitted'
+                    """)
+                    count = db.execute(check_sql, {
+                        "form_id": task.id_formulario,
+                        "task_id": task.id_tarea
+                    }).scalar()
+                    form_submitted = count > 0
+                except Exception as e:
+                    logger.warning(f"Failed to check form submission for task {task.id_tarea}: {e}")
+                    form_submitted = False
+
             result.append({
                 "id_tarea": task.id_tarea,
                 "descripcion": task.Descripcion,
@@ -77,10 +109,11 @@ def get_my_tasks(
                 "responsable": f"{emp.Nombre} {emp.Apellidos}",
                 "correo_responsable": emp.Correo,
                 "area": emp.Area,
-                "area": emp.Area,
                 "origen_tarea": task.Origen_Tarea,
                 "observaciones": task.Observaciones_Cierre if hasattr(task, 'Observaciones_Cierre') else None,
-                "id_formulario": task.id_formulario if hasattr(task, 'id_formulario') else None
+                "id_formulario": task.id_formulario if hasattr(task, 'id_formulario') else None,
+                "requiere_formulario": requires_form,
+                "formulario_diligenciado": form_submitted
             })
         
         return {
@@ -136,6 +169,55 @@ def get_task_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+@router.get("/{task_id}/form-status")
+def get_task_form_status(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthorizedUser = Depends(get_current_active_user)
+):
+    """Check if task's required form has been submitted"""
+    from sqlalchemy import text
+    
+    task_query = text("""
+        SELECT id_formulario, requiere_formulario, Fecha_Creacion
+        FROM TAREA WHERE id_tarea = :task_id
+    """)
+    
+    task_result = db.execute(task_query, {"task_id": task_id}).fetchone()
+    if not task_result:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    form_id, requires_form, task_created = task_result
+    
+    if not requires_form:
+        return {"requires_form": False, "form_submitted": False, "form_id": None}
+    
+    submission_query = text("""
+        SELECT COUNT(*) FROM FORM_SUBMISSIONS
+        WHERE form_id = :form_id
+        AND submitted_by IN (
+            SELECT id_autorizado FROM USUARIOS_AUTORIZADOS
+            WHERE Correo_Electronico = :user_email
+        )
+        AND status = 'Submitted'
+        AND submitted_at >= :task_created
+    """)
+    
+    submission_count = db.execute(submission_query, {
+        "form_id": form_id,
+        "user_email": current_user.Correo_Electronico,
+        "task_created": task_created
+    }).scalar()
+    
+    return {
+        "requires_form": True,
+        "form_submitted": submission_count > 0,
+        "form_id": form_id,
+        "task_id": task_id
+    }
+
+
 @router.put("/{task_id}/status")
 def update_task_status(
     task_id: int,
@@ -174,8 +256,44 @@ def update_task_status(
         
         # If closing task, set close date and observations
         if new_status == 'Cerrada':
+            # CRITICAL: Validate form submission if required
+            if hasattr(task, 'requiere_formulario') and task.requiere_formulario:
+                # Check if form was submitted
+                if hasattr(task, 'id_formulario') and task.id_formulario:
+                    # Query FORM_SUBMISSIONS to verify submission exists
+                    from sqlalchemy import text
+                    
+                    # Get employee ID from current user
+                    check_submission = text("""
+                        SELECT COUNT(*) FROM FORM_SUBMISSIONS 
+                        WHERE form_id = :form_id 
+                        AND submitted_by IN (
+                            SELECT id_autorizado FROM USUARIOS_AUTORIZADOS 
+                            WHERE Correo_Electronico = :user_email
+                        )
+                        AND status = 'Submitted'
+                        AND submitted_at >= :task_created
+                    """)
+                    
+                    submission_count = db.execute(check_submission, {
+                        "form_id": task.id_formulario,
+                        "user_email": current_user.Correo_Electronico,
+                        "task_created": task.Fecha_Creacion
+                    }).scalar()
+                    
+                    if submission_count == 0:
+                        raise HTTPException(
+                            status_code=400, 
+                            detail={
+                                "error": "form_required",
+                                "message": f"No se puede cerrar la tarea. Debe completar el formulario antes de cerrar esta tarea.",
+                                "form_id": task.id_formulario,
+                                "task_id": task.id_tarea
+                            }
+                        )
+            
             task.Fecha_Cierre = date.today()
-            task.id_empleado_cierre = emp.id_empleado # Assuming closer is the assignee or we should look up current user's employee ID
+            task.id_empleado_cierre = emp.id_empleado
             if observaciones:
                 task.Observaciones_Cierre = observaciones
         

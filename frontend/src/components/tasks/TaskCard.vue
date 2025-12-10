@@ -1,7 +1,17 @@
 <template>
   <div :class="['task-card', `priority-${task.prioridad?.toLowerCase()}`]" @click="$emit('click', task)">
     <div class="task-header">
-      <span class="task-type">{{ task.tipo_tarea }}</span>
+      <div class="header-left">
+        <span class="task-type">{{ task.tipo_tarea }}</span>
+        
+        <!-- Form Badge -->
+        <span v-if="task.requiere_formulario" 
+              :class="['form-badge', task.formulario_diligenciado ? 'completed' : 'required']"
+              :title="task.formulario_diligenciado ? 'Formulario Completado' : 'Requiere Formulario Obligatorio'">
+          {{ task.formulario_diligenciado ? '✓ Formulario Listo' : '📝 Formulario Requerido' }}
+        </span>
+      </div>
+      
       <span :class="['priority-badge', `priority-${task.prioridad?.toLowerCase()}`]">
         {{ task.prioridad }}
       </span>
@@ -27,14 +37,27 @@
     </div>
     
     <div class="task-actions" @click.stop>
+      <!-- Execute Form Button -->
       <button
-        v-if="task.id_formulario && task.estado !== 'Cerrada'"
+        v-if="task.id_formulario && task.estado !== 'Cerrada' && !task.formulario_diligenciado"
         @click="$emit('execute-form', task)"
-        class="action-btn"
-        title="Ejecutar Formulario"
+        class="action-btn form-btn-pulse"
+        title="Diligenciar Formulario Requerido"
       >
-        📝
+        📝 Diligenciar
       </button>
+
+      <!-- View Form Button (if submitted) -->
+      <button
+        v-if="task.formulario_diligenciado"
+        class="action-btn form-completed-btn"
+        title="Formulario Completado"
+        disabled
+      >
+        ✅ Formulario OK
+      </button>
+
+      <!-- Update Status Button -->
       <button
         v-if="task.estado !== 'Cerrada'"
         @click="$emit('update-status', task, 'En Curso')"
@@ -43,14 +66,18 @@
       >
         ▶️
       </button>
+      
+      <!-- Complete Task Button (Changes behavior if form missing) -->
       <button
         v-if="task.estado !== 'Cerrada'"
-        @click="$emit('update-status', task, 'Cerrada')"
+        @click="handleCompleteClick(task)"
         class="action-btn"
-        title="Completar"
+        :class="{ 'disabled-look': task.requiere_formulario && !task.formulario_diligenciado }"
+        title="Completar Tarea"
       >
         ✅
       </button>
+      
       <button
         @click="$emit('view-details', task)"
         class="action-btn"
@@ -72,8 +99,6 @@ const props = defineProps({
   }
 })
 
-defineEmits(['click', 'update-status', 'view-details', 'execute-form'])
-
 const isOverdue = computed(() => {
   if (!props.task.fecha_vencimiento || props.task.estado === 'Cerrada') return false
   const today = new Date().toISOString().split('T')[0]
@@ -84,6 +109,15 @@ const formatDate = (dateString) => {
   if (!dateString) return 'Sin fecha'
   const date = new Date(dateString)
   return date.toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })
+}
+
+const emit = defineEmits(['click', 'update-status', 'view-details', 'execute-form'])
+
+const handleCompleteClick = (task) => {
+  // If form is required but not submitted, we still emit 'update-status'
+  // The parent component (Tasks.vue) handles the interception via modal
+  // But we could also emit a specific event if we wanted local feedback
+  emit('update-status', task, 'Cerrada')
 }
 </script>
 
@@ -203,5 +237,69 @@ const formatDate = (dateString) => {
 .action-btn:hover {
   opacity: 1;
   transform: scale(1.1);
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.form-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 700;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.form-badge.required {
+  background-color: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.form-badge.completed {
+  background-color: #ECFDF5;
+  color: #059669;
+  border: 1px solid #A7F3D0;
+}
+
+.form-btn-pulse {
+  background-color: #EFF6FF !important;
+  color: #2563EB !important;
+  border-radius: 4px;
+  opacity: 1;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  animation: pulse-border 2s infinite;
+}
+
+.form-completed-btn {
+  background-color: #ECFDF5 !important;
+  color: #059669 !important;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  opacity: 1;
+  cursor: default;
+}
+
+.form-completed-btn:hover {
+  transform: none;
+}
+
+.disabled-look {
+  opacity: 0.3;
+  filter: grayscale(100%);
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  70% { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
 }
 </style>

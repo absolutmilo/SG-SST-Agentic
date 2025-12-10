@@ -58,6 +58,22 @@
       @clear="taskStore.clearFilters()"
     />
 
+    <!-- Error & Debug State -->
+    <div v-if="taskStore.error" class="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <span class="text-2xl">⚠️</span>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-red-700">
+            Error al cargar tareas: {{ taskStore.error }}
+          </p>
+        </div>
+      </div>
+    </div>
+    
+
+
     <!-- Loading State -->
     <div v-if="taskStore.loading" class="text-center py-12">
       <div class="loader mx-auto mb-4"></div>
@@ -197,6 +213,15 @@
       @close="showFormModal = false"
       @submit-success="handleFormSubmitted"
     />
+
+    <!-- Form Required Warning Modal -->
+    <FormRequiredModal
+      :isOpen="showFormRequiredModal"
+      :formId="taskPendingForm?.id_formulario"
+      :taskId="taskPendingForm?.id_tarea"
+      @close="showFormRequiredModal = false"
+      @navigate="handleNavigateToForm"
+    />
   </div>
 </template>
 
@@ -209,6 +234,7 @@ import TaskFilters from '../components/tasks/TaskFilters.vue'
 import StatCard from '../components/ui/StatCard.vue'
 import CreateTaskModal from '../components/tasks/CreateTaskModal.vue'
 import SmartFormModal from '../components/forms/SmartFormModal.vue'
+import FormRequiredModal from '../components/FormRequiredModal.vue'
 
 const taskStore = useTaskStore()
 const authStore = useAuthStore()
@@ -216,6 +242,8 @@ const viewMode = ref('kanban')
 const selectedTask = ref(null)
 const showCreateModal = ref(false)
 const showFormModal = ref(false)
+const showFormRequiredModal = ref(false)
+const taskPendingForm = ref(null)
 const selectedFormId = ref('')
 const selectedFormContext = ref({})
 
@@ -225,6 +253,15 @@ const handleFilterUpdate = (filters) => {
 }
 
 const handleStatusUpdate = async (task, newStatus) => {
+  // Check strict form requirement before closing
+  if (newStatus === 'Cerrada') {
+    if (task.requiere_formulario && !task.formulario_diligenciado) {
+      taskPendingForm.value = task
+      showFormRequiredModal.value = true
+      return
+    }
+  }
+
   const success = await taskStore.updateTaskStatus(task.id_tarea, newStatus)
   if (success) {
     // Optionally show success message
@@ -250,6 +287,14 @@ const handleExecuteForm = (task) => {
     description: task.descripcion
   }
   showFormModal.value = true
+}
+
+const handleNavigateToForm = ({ formId, taskId }) => {
+  showFormRequiredModal.value = false
+  // Use the existing form execution logic
+  if (taskPendingForm.value) {
+    handleExecuteForm(taskPendingForm.value)
+  }
 }
 
 const handleFormSubmitted = () => {

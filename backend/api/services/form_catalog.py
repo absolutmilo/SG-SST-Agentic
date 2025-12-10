@@ -1,6 +1,6 @@
 """
-Form Catalog - Definitions of all 40 Smart Forms
-Week 1: First 5 Critical Forms
+Form Catalog - Definitions of all Smart Forms
+Includes industry-specific forms for petrochemical sector
 """
 
 from api.models.smart_forms import (
@@ -13,10 +13,22 @@ from api.models.smart_forms import (
     WorkflowAction
 )
 
+# Import petrochemical-specific forms
+try:
+    from .form_catalog_petrochemical import (
+        get_permiso_caliente_form,
+        get_permiso_espacio_confinado_form
+    )
+    PETROCHEMICAL_FORMS_AVAILABLE = True
+except ImportError as e:
+    import logging
+    logging.warning(f"Petrochemical forms not available: {e}")
+    PETROCHEMICAL_FORMS_AVAILABLE = False
+
 
 def get_form_catalog():
     """Returns catalog of all available forms"""
-    return {
+    catalog = {
         "form_accidente_trabajo": get_accidente_trabajo_form(),
         "form_incidente": get_incidente_form(),
         "form_enfermedad_laboral": get_enfermedad_laboral_form(),
@@ -33,6 +45,15 @@ def get_form_catalog():
         "form_evaluacion_riesgo": get_evaluacion_riesgo_form(),
         "form_acta_reunion": get_acta_reunion_form(),
     }
+    
+    # Add petrochemical forms if available
+    if PETROCHEMICAL_FORMS_AVAILABLE:
+        catalog.update({
+            "form_permiso_caliente": get_permiso_caliente_form(),
+            "form_permiso_espacio_confinado": get_permiso_espacio_confinado_form(),
+        })
+    
+    return catalog
 
 
 def get_form_definition(form_id: str):
@@ -285,13 +306,13 @@ def get_accidente_trabajo_form() -> SmartFormDefinition:
                 params={
                     "table": "EVENTO",
                     "mapping": {
-                        "Id_Empleado": "id_empleado",
+                        "id_empleado": "id_empleado",
                         "Fecha_Evento": "fecha_accidente",
-                        "Lugar": "lugar_accidente",
-                        "Descripcion": "descripcion",
+                        "Lugar_Evento": "lugar_accidente",
+                        "Descripcion_Evento": "descripcion",
                         "Tipo_Evento": "'Accidente de Trabajo'",
-                        "Parte_Cuerpo": "parte_cuerpo",
-                        "Tipo_Lesion": "tipo_lesion",
+                        "Parte_Cuerpo_Afectada": "parte_cuerpo",
+                        "Naturaleza_Lesion": "tipo_lesion",
                         "Dias_Incapacidad": "dias_incapacidad",
                         "Causas_Inmediatas": "causas_inmediatas",
                         "Causas_Basicas": "causas_basicas"
@@ -411,10 +432,10 @@ def get_incidente_form() -> SmartFormDefinition:
                 order=5,
                 grid_columns=6,
                 options=[
-                    {"value": "casi_accidente", "label": "Casi Accidente"},
-                    {"value": "condicion_insegura", "label": "Condición Insegura"},
-                    {"value": "acto_inseguro", "label": "Acto Inseguro"},
-                    {"value": "otro", "label": "Otro"}
+                    {"value": "Incidente", "label": "Casi Accidente (Incidente)"},
+                    {"value": "Condición Insegura", "label": "Condición Insegura"},
+                    {"value": "Acto Inseguro", "label": "Acto Inseguro"},
+                    {"value": "Incidente", "label": "Otro"}
                 ]
             ),
             FormField(
@@ -432,13 +453,34 @@ def get_incidente_form() -> SmartFormDefinition:
         on_submit=[
             WorkflowAction(
                 action="save_to_table",
-                params={"table": "EVENTO", "mapping": {}},
+                params={
+                    "table": "EVENTO",
+                    "mapping": {
+                        "Fecha_Evento": "fecha_incidente",
+                        "id_empleado": "reportado_por",
+                        "Lugar_Evento": "lugar_incidente",
+                        "Descripcion_Evento": "descripcion",
+                        "Tipo_Evento": "tipo_incidente",
+                        "Causas_Inmediatas": "acciones_inmediatas"
+                    }
+                },
                 order=1
+            ),
+            WorkflowAction(
+                action="create_task",
+                params={
+                    "tipo_tarea": "Investigación de Incidente",
+                    "descripcion": "Investigar y cerrar incidente reportado",
+                    "prioridad": "Media",
+                    "assign_to_role": "Coordinador SST",
+                    "due_date": "+3 days"
+                },
+                order=2
             ),
             WorkflowAction(
                 action="send_notification",
                 params={"recipients": ["coordinador_sst"]},
-                order=2
+                order=3
             ),
         ],
         
@@ -660,7 +702,18 @@ def get_entrega_epp_form() -> SmartFormDefinition:
         on_submit=[
             WorkflowAction(
                 action="save_to_table",
-                params={"table": "ENTREGA_EPP"},
+                params={
+                    "table": "ENTREGA_EPP",
+                    "mapping": {
+                        "id_empleado": "id_empleado",
+                        "id_epp": "id_epp",
+                        "Fecha_Entrega": "fecha_entrega",
+                        "Cantidad": "cantidad",
+                        "Vida_Util_Meses": "vida_util",
+                        "Entregado_Por": "entregado_por",
+                        "Firma_Recibido": "firma"
+                    }
+                },
                 order=1
             ),
             WorkflowAction(
@@ -839,19 +892,24 @@ def get_examen_medico_form() -> SmartFormDefinition:
         on_submit=[
             WorkflowAction(
                 action="save_to_table",
-                params={"table": "EXAMEN_MEDICO"}, # Assumes table exists or will be handled generically
+                params={
+                    "table": "EXAMEN_MEDICO",
+                    "mapping": {
+                        "id_empleado": "id_empleado",
+                        "Tipo_Examen": "tipo_examen",
+                        "Fecha_Realizacion": "fecha_examen",
+                        "Fecha_Vencimiento": "fecha_vencimiento",
+                        "EntidadRealizadora": "entidad_realizadora",
+                        "MedicoEvaluador": "medico_evaluador",
+                        "Apto_Para_Cargo": "concepto_aptitud",
+                        "Restricciones": "restricciones"
+                    }
+                },
                 order=1
             ),
             WorkflowAction(
-                action="update_employee_status",
-                params={
-                    "status_field": "Estado_Salud",
-                    "value_map": {
-                        "apto": "Apto",
-                        "apto_restricciones": "Con Restricciones",
-                        "no_apto": "No Apto"
-                    }
-                },
+                action="complete_task",
+                params={},
                 order=2
             ),
         ],
@@ -884,7 +942,20 @@ def get_inspeccion_extintor_form() -> SmartFormDefinition:
             FormField(id="observaciones", name="observaciones", label="Observaciones", type=FieldType.TEXTAREA, order=5)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_EXTINTOR"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "INSPECCION",
+                    "mapping": {
+                        "Tipo_Inspeccion": "'Extintor'",
+                        "Area_Inspeccionada": "ubicacion",
+                        "Fecha_Inspeccion": "'today'",
+                        "HallazgosEncontrados": "observaciones",
+                        "Estado": "'Realizada'"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -905,7 +976,20 @@ def get_inspeccion_botiquin_form() -> SmartFormDefinition:
             FormField(id="observaciones", name="observaciones", label="Observaciones", type=FieldType.TEXTAREA, order=4)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_BOTIQUIN"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "INSPECCION",
+                    "mapping": {
+                        "Tipo_Inspeccion": "'Botiquín'",
+                        "Area_Inspeccionada": "ubicacion",
+                        "Fecha_Inspeccion": "'today'",
+                        "HallazgosEncontrados": "observaciones",
+                        "Estado": "'Realizada'"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -928,7 +1012,20 @@ def get_inspeccion_locativa_form() -> SmartFormDefinition:
             FormField(id="observaciones", name="observaciones", label="Hallazgos", type=FieldType.TEXTAREA, order=5)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "INSPECCION_LOCATIVA"}, order=1),
+            WorkflowAction(
+                action="save_to_table", 
+                params={
+                    "table": "INSPECCION",
+                    "mapping": {
+                        "Tipo_Inspeccion": "'Locativa'",
+                        "Area_Inspeccionada": "area",
+                        "Fecha_Inspeccion": "'today'",
+                        "HallazgosEncontrados": "observaciones",
+                        "Estado": "'Realizada'"
+                    }
+                }, 
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -954,7 +1051,20 @@ def get_registro_capacitacion_form() -> SmartFormDefinition:
             FormField(id="evaluacion", name="evaluacion", label="Evaluación de Eficacia", type=FieldType.TEXTAREA, order=5)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "REGISTRO_CAPACITACION"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "CAPACITACION",
+                    "mapping": {
+                        "Tema": "tema",
+                        "Facilitador": "facilitador",
+                        "Fecha_Programada": "fecha",
+                        "Descripcion": "evaluacion",
+                        "Estado": "'Realizada'"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -1008,7 +1118,20 @@ def get_accion_correctiva_form() -> SmartFormDefinition:
             FormField(id="fecha_cierre", name="fecha_cierre", label="Fecha de Cierre Estimada", type=FieldType.DATE, required=True, order=6)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "ACCION_CORRECTIVA"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "ACCION_CORRECTIVA",
+                    "mapping": {
+                        "TipoAccion": "origen",
+                        "Descripcion": "plan_accion",
+                        "ResponsableEjecucion": "responsable",
+                        "FechaCompromiso": "fecha_cierre",
+                        "Estado": "'Abierta'"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -1035,7 +1158,20 @@ def get_registro_mantenimiento_form() -> SmartFormDefinition:
             FormField(id="proximo_mantenimiento", name="proximo", label="Fecha Próximo Mantenimiento", type=FieldType.DATE, required=True, order=6)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "REGISTRO_MANTENIMIENTO"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "MANTENIMIENTO_EQUIPO",
+                    "mapping": {
+                        "id_equipo": "equipo",
+                        "TipoMantenimiento": "tipo_mantenimiento",
+                        "FechaMantenimiento": "fecha",
+                        "ProximoMantenimiento": "proximo_mantenimiento",
+                        "DescripcionActividades": "descripcion"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -1062,7 +1198,17 @@ def get_evaluacion_riesgo_form() -> SmartFormDefinition:
             FormField(id="nuevos_controles", name="nuevos_controles", label="Nuevos Controles Propuestos", type=FieldType.TEXTAREA, required=True, order=6)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "EVALUACION_RIESGO_DETALLE"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "EVALUACION_RIESGO",
+                    "mapping": {
+                        "Descripcion": "proceso",
+                        "Estado": "'Realizada'"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )
@@ -1089,7 +1235,22 @@ def get_acta_reunion_form() -> SmartFormDefinition:
             FormField(id="proxima_reunion", name="proxima", label="Fecha Próxima Reunión", type=FieldType.DATE, required=True, order=6)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "ACTA_REUNION"}, order=1),
+            WorkflowAction(
+                action="save_to_table",
+                params={
+                    "table": "REUNION_COMITE",
+                    "mapping": {
+                        "id_comite": "comite",
+                        "FechaReunion": "fecha",
+                        "TipoReunion": "comite",
+                        "Asistentes": "asistentes",
+                        "TemasDiscutidos": "temas",
+                        "Acuerdos": "compromisos",
+                        "ProximaReunion": "proxima_reunion"
+                    }
+                },
+                order=1
+            ),
             WorkflowAction(action="complete_task", params={}, order=2)
         ]
     )

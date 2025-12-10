@@ -28,18 +28,29 @@
         <p v-if="section.description" class="section-description">{{ section.description }}</p>
         
         <div class="form-grid">
-          <component
+          <div
             v-for="field in section.fields"
             :key="field.id"
-            :is="getFieldComponent(field.type)"
-            v-show="visibleFields.has(field.id)"
-            :field="field"
-            :modelValue="formData[field.id]"
-            :error="errors[field.id]"
-            @update="updateField(field.id, $event)"
-            @blur="validateField(field.id, formData[field.id])"
             :class="`grid-col-${field.grid_columns}`"
-          />
+            v-show="visibleFields.has(field.id)"
+          >
+            <component
+              :is="getFieldComponent(field.type)"
+              :field="field"
+              :modelValue="formData[field.id]"
+              :error="errors[field.id]"
+              @update="updateField(field.id, $event)"
+              @blur="validateField(field.id, formData[field.id])"
+            />
+            
+            <!-- Safety Indicator for Petrochemical Fields -->
+            <SafetyIndicator 
+              v-if="getSafetyType(field.id)"
+              :fieldId="getSafetyType(field.id)"
+              :value="formData[field.id]"
+              class="mt-2"
+            />
+          </div>
         </div>
       </div>
       
@@ -90,6 +101,7 @@ import TextareaField from './fields/TextareaField.vue'
 import FileUploadField from './fields/FileUploadField.vue'
 import SignatureField from './fields/SignatureField.vue'
 import EmployeeSelectField from './fields/EmployeeSelectField.vue'
+import SafetyIndicator from '../SafetyIndicator.vue'
 
 const props = defineProps({
   formId: {
@@ -101,6 +113,16 @@ const props = defineProps({
     default: () => ({})
   }
 })
+
+const getSafetyType = (fieldId) => {
+  if (!fieldId) return null
+  const lowerId = fieldId.toLowerCase()
+  if (lowerId.includes('oxigeno')) return 'oxigeno'
+  if (lowerId.includes('lel')) return 'lel'
+  if (lowerId.includes('h2s')) return 'h2s'
+  if (lowerId.includes('co') && !lowerId.includes('control') && !lowerId.includes('correo')) return 'co' // Avoid false positives
+  return null
+}
 
 const router = useRouter()
 const submitSuccess = ref(false)

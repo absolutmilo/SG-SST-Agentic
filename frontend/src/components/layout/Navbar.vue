@@ -68,12 +68,44 @@
         </div>
       </div>
       
-      <div class="user-profile">
-        <div class="avatar">
-          <span>{{ userInitials }}</span>
+      <div class="user-profile" ref="userProfileWrapper">
+        <div class="user-menu-trigger" @click="toggleUserMenu">
+          <div class="avatar">
+            <span>{{ userInitials }}</span>
+          </div>
+          <div class="user-info">
+            <span class="user-name">{{ user.name }}</span>
+            <i class="fas fa-chevron-down" :class="{ 'rotate': showUserMenu }"></i>
+          </div>
         </div>
-        <div class="user-info">
-          <span class="user-name">{{ user.name }}</span>
+        
+        <!-- User Dropdown Menu -->
+        <div v-if="showUserMenu" class="user-dropdown">
+          <div class="user-dropdown-header">
+            <div class="avatar-large">
+              <span>{{ userInitials }}</span>
+            </div>
+            <div class="user-details">
+              <p class="user-full-name">{{ user.name }}</p>
+              <p class="user-email">{{ user.email || 'usuario@empresa.com' }}</p>
+            </div>
+          </div>
+          
+          <div class="user-dropdown-menu">
+            <button @click="goToProfile" class="menu-item">
+              <i class="fas fa-user"></i>
+              <span>Mi Perfil</span>
+            </button>
+            <button @click="goToSettings" class="menu-item">
+              <i class="fas fa-cog"></i>
+              <span>Configuración</span>
+            </button>
+            <div class="menu-divider"></div>
+            <button @click="handleLogout" class="menu-item logout">
+              <i class="fas fa-sign-out-alt"></i>
+              <span>Cerrar Sesión</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -92,6 +124,7 @@ export default {
   data() {
     return {
       showNotifications: false,
+      showUserMenu: false,
       navItems: [
         { name: 'Dashboard', path: '/', icon: 'fas fa-chart-line' },
         { name: 'Tareas', path: '/tasks', icon: 'fas fa-tasks' },
@@ -143,10 +176,18 @@ export default {
   methods: {
     toggleNotifications() {
       this.showNotifications = !this.showNotifications
+      this.showUserMenu = false
+    },
+    toggleUserMenu() {
+      this.showUserMenu = !this.showUserMenu
+      this.showNotifications = false
     },
     handleClickOutside(event) {
       if (this.$refs.notificationWrapper && !this.$refs.notificationWrapper.contains(event.target)) {
         this.showNotifications = false
+      }
+      if (this.$refs.userProfileWrapper && !this.$refs.userProfileWrapper.contains(event.target)) {
+        this.showUserMenu = false
       }
     },
     markAsRead(notification) {
@@ -158,6 +199,22 @@ export default {
     viewAllNotifications() {
       this.showNotifications = false
       this.$router.push('/alerts')
+    },
+    goToProfile() {
+      this.showUserMenu = false
+      this.$router.push('/profile')
+    },
+    goToSettings() {
+      this.showUserMenu = false
+      this.$router.push('/settings')
+    },
+    handleLogout() {
+      this.showUserMenu = false
+      // Clear auth token
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      // Redirect to login
+      this.$router.push('/login')
     },
     getNotificationIcon(type) {
       const icons = {
@@ -417,6 +474,21 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.user-menu-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .avatar {
@@ -433,11 +505,115 @@ export default {
 
 .user-info {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .user-name {
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.user-info i {
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+}
+
+.user-info i.rotate {
+  transform: rotate(180deg);
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 120%;
+  right: 0;
+  width: 280px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  color: #2d3748;
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+.user-dropdown-header {
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatar-large {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.user-details {
+  flex: 1;
+}
+
+.user-full-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.user-email {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.user-dropdown-menu {
+  padding: 0.5rem 0;
+}
+
+.menu-item {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.9rem;
+  color: #2d3748;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background: #f7fafc;
+}
+
+.menu-item i {
+  width: 20px;
+  color: #718096;
+}
+
+.menu-item.logout {
+  color: #e53e3e;
+}
+
+.menu-item.logout i {
+  color: #e53e3e;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.5rem 0;
 }
 </style>

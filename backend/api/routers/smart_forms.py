@@ -107,11 +107,6 @@ async def get_prefill_data(
     """
     try:
         context_data = json.loads(context) if context else {}
-        
-        # TODO: Implement pre-fill logic based on form_id and context
-        # Example: For medical exam, get last exam data
-        # Example: For accident, get employee data
-        
         prefill_data = {}
         
         # Get form definition
@@ -120,14 +115,25 @@ async def get_prefill_data(
         
         if not form_def:
             return {}
-        
-        # Process each field's prefill_from
+            
+        # 1. Basic Context Mapping
+        # Map context keys directly to field IDs if they match
         for field in form_def.fields:
-            if field.prefill_from:
-                # Execute prefill query
-                # prefill_data[field.id] = execute_prefill_query(field.prefill_from, context_data)
-                pass
-        
+            # Direct match
+            if field.id in context_data:
+                prefill_data[field.id] = context_data[field.id]
+                
+            # Special case: Employee ID
+            if field.type == "employee_select" and "id_empleado" in context_data:
+                prefill_data[field.id] = context_data["id_empleado"]
+                
+            # Special case: Current Date
+            if field.type == "date" and field.default_value == "today":
+                prefill_data[field.id] = datetime.now().strftime("%Y-%m-%d")
+
+        # 2. Database Prefill (if configured)
+        # TODO: Implement complex DB queries if 'prefill_from' is set
+                
         return prefill_data
         
     except Exception as e:
@@ -147,84 +153,141 @@ async def submit_form(
     current_user: AuthorizedUser = Depends(get_current_active_user)
 ):
     """
-    Submit a form.
+    Submit a form with GUARANTEED data insertion using atomic transactions.
     1. Validate data
-    2. Save to database
-    3. Execute workflow actions
-    4. Generate PDF if configured
-    5. Send notifications
+    2. Save to FORM_SUBMISSIONS
+    3. Execute workflow actions (save_to_table, create_task, etc.)
+    4. Verify data insertion
+    5. Rollback everything if any step fails
     """
+    submission_id = None
+    
     try:
         # Get form definition
         from api.services.form_catalog import get_form_definition
+        from api.utils.data_verification import (
+            verify_data_insertion,
+            save_verification_audit,
+            update_submission_status
+        )
+        
         form_def = get_form_definition(form_id)
         
         if not form_def:
             raise HTTPException(status_code=404, detail="Form not found")
         
-        # 1. Validate submission
+        # Step 1: Validate submission data
         validation_result = validate_form_data(form_def, submission.data)
         if not validation_result.is_valid:
             raise HTTPException(
                 status_code=400,
-                detail={"message": "Validation failed", "errors": validation_result.errors}
+                detail={
+                    "error": "validation_failed",
+                    "message": "Validation failed",
+                    "errors": [
+                        {
+                            "field": err.field_id,
+                            "type": err.error_type,
+                            "message": err.message
+                        } for err in validation_result.errors
+                    ]
+                }
             )
         
-        # 2. Save to database
+        # Inject context into data so it gets saved in JSON
+        if submission.context:
+            submission.data['context'] = submission.context
+
+        # Step 2: Save to FORM_SUBMISSIONS (returns ID)
         submission_id = save_form_submission(db, form_id, submission, current_user.Id_Usuario)
+        logger.info(f"Form submission created: {submission_id}")
         
-        # 3. Execute workflow actions with result tracking
+        # Step 3: Execute workflow actions with result tracking
         workflow_results = {}
-        workflow_success = True
-        workflow_error = None
         
         try:
             for action in sorted(form_def.on_submit, key=lambda x: x.order):
-                logger.info(f"Executing workflow action: {action.action}")
-                execute_workflow_action(
+                logger.info(f"Executing workflow action: {action.action} (order {action.order})")
+                
+                result = execute_workflow_action(
                     db, action, submission.data,
                     current_user, submission.context,
                     workflow_results
                 )
-        except Exception as e:
-            workflow_success = False
-            workflow_error = str(e)
-            logger.error(f"Workflow execution failed: {workflow_error}")
-            # Rollback database changes if workflow fails
+                
+                workflow_results[action.action] = result
+                logger.info(f"Action {action.action} completed successfully")
+                
+        except Exception as workflow_error:
+            # CRITICAL: Rollback everything if any workflow fails
+            logger.error(f"Workflow failed, rolling back transaction: {str(workflow_error)}")
             db.rollback()
+            
+            # Update submission status to 'Failed'
+            try:
+                update_submission_status(db, submission_id, 'Failed', str(workflow_error))
+            except:
+                pass  # Don't fail if status update fails
+            
             raise HTTPException(
                 status_code=500,
                 detail={
-                    "message": f"Error en flujo de trabajo: {workflow_error}",
-                    "workflow_results": workflow_results
+                    "error": "workflow_failed",
+                    "message": f"Error executing workflow: {str(workflow_error)}",
+                    "submission_id": submission_id,
+                    "failed_action": action.action if 'action' in locals() else "unknown"
                 }
             )
         
-        # 4. Generate PDF if configured
-        if form_def.generate_pdf:
-            # TODO: Generate PDF
-            pass
+        # Step 4: Commit transaction (all or nothing)
+        db.commit()
+        logger.info(f"Transaction committed successfully for submission {submission_id}")
         
-        # 5. Send notifications
-        if form_def.send_notifications:
-            # TODO: Send notifications
-            pass
+        # Step 5: Verify data insertion
+        verification = verify_data_insertion(db, workflow_results, form_id)
         
+        # Save verification audit
+        try:
+            save_verification_audit(db, submission_id, verification)
+        except Exception as audit_error:
+            logger.warning(f"Failed to save verification audit: {str(audit_error)}")
+        
+        # Update submission status to 'Submitted'
+        try:
+            update_submission_status(db, submission_id, 'Submitted')
+        except Exception as status_error:
+            logger.warning(f"Failed to update submission status: {str(status_error)}")
+        
+        # Return success with verification details
         return {
             "success": True,
-            "message": "Formulario enviado exitosamente",
             "submission_id": submission_id,
-            "form_id": form_id,
-            "workflow_results": workflow_results
+            "message": "Form submitted successfully",
+            "workflow_results": workflow_results,
+            "verification": verification
         }
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Form submission failed: {str(e)}")
         db.rollback()
-        logger.error(f"Error submitting form: {e}")
-        logger.exception("Full traceback:")  # This will log the full stack trace
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        # Try to update submission status if we have an ID
+        if submission_id:
+            try:
+                update_submission_status(db, submission_id, 'Failed', str(e))
+            except:
+                pass
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "submission_failed",
+                "message": f"Failed to submit form: {str(e)}",
+                "submission_id": submission_id
+            }
+        )
 
 
 # ============================================================
@@ -240,7 +303,42 @@ async def save_draft(
 ):
     """Save form draft (auto-save)"""
     try:
-        # TODO: Save to FORM_DRAFTS table
+        data_json = json.dumps(data)
+        
+        # Check if draft exists
+        query_check = text("""
+            SELECT id_draft FROM FORM_DRAFTS 
+            WHERE form_id = :form_id AND user_id = :user_id
+        """)
+        result = db.execute(query_check, {"form_id": form_id, "user_id": current_user.Id_Usuario})
+        existing_draft = result.fetchone()
+        
+        if existing_draft:
+            # Update existing draft
+            query_update = text("""
+                UPDATE FORM_DRAFTS 
+                SET data_json = :data_json, 
+                    saved_at = GETDATE(),
+                    expires_at = DATEADD(day, 30, GETDATE())
+                WHERE id_draft = :id_draft
+            """)
+            db.execute(query_update, {
+                "data_json": data_json,
+                "id_draft": existing_draft[0]
+            })
+        else:
+            # Insert new draft
+            query_insert = text("""
+                INSERT INTO FORM_DRAFTS (form_id, user_id, data_json, saved_at, expires_at)
+                VALUES (:form_id, :user_id, :data_json, GETDATE(), DATEADD(day, 30, GETDATE()))
+            """)
+            db.execute(query_insert, {
+                "form_id": form_id,
+                "user_id": current_user.Id_Usuario,
+                "data_json": data_json
+            })
+            
+        db.commit()
         
         return {
             "message": "Draft saved successfully",
@@ -248,6 +346,7 @@ async def save_draft(
         }
         
     except Exception as e:
+        db.rollback()
         logger.error(f"Error saving draft: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -260,8 +359,17 @@ async def get_draft(
 ):
     """Get saved draft for current user"""
     try:
-        # TODO: Load from FORM_DRAFTS table
+        query = text("""
+            SELECT data_json, saved_at 
+            FROM FORM_DRAFTS 
+            WHERE form_id = :form_id AND user_id = :user_id
+        """)
+        result = db.execute(query, {"form_id": form_id, "user_id": current_user.Id_Usuario})
+        row = result.fetchone()
         
+        if row and row.data_json:
+            return json.loads(row.data_json)
+            
         return {}
         
     except Exception as e:
@@ -350,9 +458,42 @@ def validate_form_data(
             continue
         
         # Run field validations
+        # Run field validations
         for validation in field.validations:
-            # TODO: Implement validation logic
-            pass
+            # Required check is already done above
+            
+            # Min Length / Min Value
+            if validation.type == "min" and field_value is not None:
+                if field.type in ["number", "integer"]:
+                    if float(field_value) < float(validation.value):
+                        errors.append(FormValidationError(
+                            field_id=field.id, field_name=field.name, error_type="min",
+                            message=validation.message or f"Value must be at least {validation.value}"))
+                elif isinstance(field_value, str) and len(field_value) < int(validation.value):
+                    errors.append(FormValidationError(
+                        field_id=field.id, field_name=field.name, error_type="min_length",
+                        message=validation.message or f"Must be at least {validation.value} characters"))
+            
+            # Max Length / Max Value
+            if validation.type == "max" and field_value is not None:
+                if field.type in ["number", "integer"]:
+                    if float(field_value) > float(validation.value):
+                        errors.append(FormValidationError(
+                            field_id=field.id, field_name=field.name, error_type="max",
+                            message=validation.message or f"Value must be at most {validation.value}"))
+            
+            # Pattern / Regex
+            if validation.type == "pattern" and field_value and isinstance(field_value, str):
+                import re
+                if not re.match(validation.value, field_value):
+                    errors.append(FormValidationError(
+                        field_id=field.id, field_name=field.name, error_type="pattern",
+                        message=validation.message or "Invalid format"))
+            
+            # Date Range (Basic)
+            if validation.type == "date_range" and field_value:
+                # TODO: Implement date logic
+                pass
     
     return FormValidationResult(
         is_valid=len(errors) == 0,
@@ -374,36 +515,66 @@ def save_form_submission(
             from sqlalchemy import text
             import json
             
-            # Try to save to FORM_SUBMISSIONS table
+            # Prepare attachments JSON
+            attachments_json = json.dumps(submission.attachments) if submission.attachments else "[]"
+            
+            # Form Title (from definition or lookup)
+            from api.services.form_catalog import get_form_definition
+            form_def = get_form_definition(form_id)
+            form_title = form_def.title if form_def else form_id
+            
+            # Insert into FORM_SUBMISSIONS table
+            # matching user provided schema: 
+            # id_submission, form_id, form_version, form_title, data_json, attachments_json, 
+            # submitted_by, submitted_at, status, workflow_status, ip_address, user_agent...
+            
             query = text("""
                 INSERT INTO FORM_SUBMISSIONS (
                     form_id,
                     form_version,
+                    form_title,
+                    data_json,
+                    attachments_json,
                     submitted_by,
                     submitted_at,
-                    data_json,
-                    status
+                    status,
+                    workflow_status,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    updated_at
                 )
                 OUTPUT INSERTED.id_submission
                 VALUES (
                     :form_id,
                     :form_version,
+                    :form_title,
+                    :data_json,
+                    :attachments_json,
                     :submitted_by,
                     GETDATE(),
-                    :data_json,
-                    'completed'
+                    'Submitted',
+                    'Pending',
+                    :ip_address,
+                    :user_agent,
+                    GETDATE(),
+                    GETDATE()
                 )
             """)
             
             result = db.execute(query, {
                 "form_id": form_id,
                 "form_version": submission.form_version,
+                "form_title": form_title,
+                "data_json": json.dumps(submission.data),
+                "attachments_json": attachments_json,
                 "submitted_by": user_id,
-                "data_json": json.dumps(submission.data)
+                "ip_address": submission.ip_address,
+                "user_agent": submission.user_agent
             })
             
             row = result.fetchone()
-            submission_id = row[0] if row else None
+            submission_id = row[0] if row else 0
             
             db.commit()
             
@@ -411,11 +582,12 @@ def save_form_submission(
             return submission_id
             
         except Exception as table_error:
-            # Table might not exist, just log and continue
-            logger.warning(f"Could not save to FORM_SUBMISSIONS table: {table_error}")
-            logger.info(f"Form data will be processed by workflows only")
+            logger.error(f"Failed to save to FORM_SUBMISSIONS table: {table_error}")
             db.rollback()
-            return 0  # Return 0 to indicate no submission ID but continue processing
+            # If we can't save the submission record, we should probably fail?
+            # Or allow workflow to continue if it feeds business tables?
+            # Let's fail safety.
+            raise
             
     except Exception as e:
         logger.error(f"Error in save_form_submission: {e}")

@@ -23,7 +23,7 @@ export const useTaskStore = defineStore('tasks', {
 
     getters: {
         tasksByStatus: (state) => (status) => {
-            return state.myTasks.filter(task => task.estado === status)
+            return state.myTasks.filter(task => task.estado?.trim() === status)
         },
 
         tasksByPriority: (state) => (priority) => {
@@ -33,20 +33,20 @@ export const useTaskStore = defineStore('tasks', {
         overdueTasks: (state) => {
             const today = new Date().toISOString().split('T')[0]
             return state.myTasks.filter(
-                task => task.estado !== 'Cerrada' && task.fecha_vencimiento < today
+                task => task.estado?.trim() !== 'Cerrada' && task.fecha_vencimiento < today
             )
         },
 
         pendingTasks: (state) => {
-            return state.myTasks.filter(task => task.estado === 'Pendiente')
+            return state.myTasks.filter(task => task.estado?.trim() === 'Pendiente')
         },
 
         inProgressTasks: (state) => {
-            return state.myTasks.filter(task => task.estado === 'En Curso')
+            return state.myTasks.filter(task => task.estado?.trim() === 'En Curso')
         },
 
         completedTasks: (state) => {
-            return state.myTasks.filter(task => task.estado === 'Cerrada')
+            return state.myTasks.filter(task => task.estado?.trim() === 'Cerrada')
         }
     },
 
