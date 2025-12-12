@@ -20,6 +20,7 @@ from api.models.smart_forms import (
     WorkflowAction
 )
 from api.dependencies import get_current_active_user
+from api.services.pdf_generator import PDFGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -199,7 +200,7 @@ async def submit_form(
             submission.data['context'] = submission.context
 
         # Step 2: Save to FORM_SUBMISSIONS (returns ID)
-        submission_id = save_form_submission(db, form_id, submission, current_user.Id_Usuario)
+        submission_id = save_form_submission(db, form_id, submission, current_user.id_autorizado)
         logger.info(f"Form submission created: {submission_id}")
         
         # Step 3: Execute workflow actions with result tracking
@@ -211,7 +212,7 @@ async def submit_form(
                 
                 result = execute_workflow_action(
                     db, action, submission.data,
-                    current_user, submission.context,
+                    current_user, submission.context or {},
                     workflow_results
                 )
                 
@@ -248,7 +249,7 @@ async def submit_form(
         
         # Save verification audit
         try:
-            save_verification_audit(db, submission_id, verification)
+            save_verification_audit(db, submission_id, verification, current_user.id_autorizado)
         except Exception as audit_error:
             logger.warning(f"Failed to save verification audit: {str(audit_error)}")
         
@@ -310,7 +311,7 @@ async def save_draft(
             SELECT id_draft FROM FORM_DRAFTS 
             WHERE form_id = :form_id AND user_id = :user_id
         """)
-        result = db.execute(query_check, {"form_id": form_id, "user_id": current_user.Id_Usuario})
+        result = db.execute(query_check, {"form_id": form_id, "user_id": current_user.id_autorizado})
         existing_draft = result.fetchone()
         
         if existing_draft:
@@ -334,7 +335,7 @@ async def save_draft(
             """)
             db.execute(query_insert, {
                 "form_id": form_id,
-                "user_id": current_user.Id_Usuario,
+                "user_id": current_user.id_autorizado,
                 "data_json": data_json
             })
             
@@ -529,6 +530,7 @@ def save_form_submission(
             # submitted_by, submitted_at, status, workflow_status, ip_address, user_agent...
             
             query = text("""
+                SET NOCOUNT ON;
                 INSERT INTO FORM_SUBMISSIONS (
                     form_id,
                     form_version,
@@ -544,7 +546,6 @@ def save_form_submission(
                     created_at,
                     updated_at
                 )
-                OUTPUT INSERTED.id_submission
                 VALUES (
                     :form_id,
                     :form_version,
@@ -559,7 +560,8 @@ def save_form_submission(
                     :user_agent,
                     GETDATE(),
                     GETDATE()
-                )
+                );
+                SELECT CAST(SCOPE_IDENTITY() AS INT);
             """)
             
             result = db.execute(query, {
@@ -573,8 +575,60 @@ def save_form_submission(
                 "user_agent": submission.user_agent
             })
             
-            row = result.fetchone()
-            submission_id = row[0] if row else 0
+            # Get the ID from SCOPE_IDENTITY()
+            submission_id = result.scalar() or 0
+            
+            # --- PDF GENERATION & DOCUMENT CREATION ---
+            try:
+                # 1. Generate PDF
+                generator = PDFGenerator()
+                
+                # Expand data with metadata
+                pdf_data = submission.data.copy()
+                pdf_data['id'] = submission_id
+                pdf_data['fecha_creacion'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Use form title for filename
+                clean_title = form_title.replace(" ", "_").replace("/", "-")
+                filename = f"ACTA_{clean_title}_{submission_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+                
+                # Generate
+                filepath, _, size_bytes = generator.generate_inspection_report(
+                    form_data=pdf_data,
+                    schema_title=form_title,
+                    user_name=f"Usuario {user_id}", # Idealmente obtener nombre real si posible
+                    filename=filename
+                )
+                
+                # 2. Create Documento Record
+                Documento = getattr(Base.classes, 'DOCUMENTO', None)
+                if Documento:
+                    # Determine category based on form_id keywords
+                    category = "Gestion"
+                    if "inspeccion" in form_id.lower(): category = "Seguridad Industrial"
+                    elif "salud" in form_id.lower() or "emo" in form_id.lower(): category = "Salud"
+                    
+                    new_doc = Documento(
+                        Nombre=f"Acta: {form_title} #{submission_id}",
+                        Tipo="Formato",
+                        CategoriaSGSST=category,
+                        Area="Operaciones", # Default or extract from data
+                        descripcion=f"Autogenerado desde Formulario {form_id}",
+                        version=1,
+                        RutaArchivo=f"documents/{filename}", # Relative path used by frontend
+                        mime_type="application/pdf",
+                        tamano_bytes=size_bytes,
+                        Responsable=None,  # FK constraint to EMPLEADO, not USUARIOS_AUTORIZADOS
+                        FechaCreacion=datetime.now(),
+                        Estado="Vigente",
+                        Codigo=f"MEM-{submission_id}"
+                    )
+                    db.add(new_doc)
+                    logger.info(f"Generated PDF Document for submission {submission_id}")
+
+            except Exception as pdf_error:
+                logger.error(f"Failed to generate PDF for submission {submission_id}: {pdf_error}")
+                # Continue without failing the main submission
             
             db.commit()
             
@@ -612,10 +666,13 @@ def execute_workflow_action(
     if workflow_results is None:
         workflow_results = {}
     
+    # Ensure params is a dict (handle case where it might be None)
+    safe_params = action.params or {}
+    
     try:
         if action.action == "save_to_table":
             # Save data to specified table and capture result
-            result = save_to_table(db, action.params, form_data)
+            result = save_to_table(db, safe_params, form_data)
             workflow_results["save_to_table"] = result
             
             # If save failed, raise exception to stop workflow
@@ -625,38 +682,38 @@ def execute_workflow_action(
         
         elif action.action == "create_task":
             # Create a task
-            create_task_from_form(db, action.params, form_data, current_user)
+            create_task_from_form(db, safe_params, form_data, current_user)
             workflow_results["create_task"] = {"success": True}
         
         elif action.action == "send_notification":
             # Send notification
-            send_notification(action.params, form_data)
+            send_notification(safe_params, form_data)
             workflow_results["send_notification"] = {"success": True}
         
         elif action.action == "update_indicators":
             # Update indicators
-            update_indicators(db, action.params)
+            update_indicators(db, safe_params)
             workflow_results["update_indicators"] = {"success": True}
         
         elif action.action == "run_sp":
             # Run stored procedure
-            run_stored_procedure(db, action.params, form_data)
+            run_stored_procedure(db, safe_params, form_data)
             workflow_results["run_sp"] = {"success": True}
         
         elif action.action == "ai_analyze":
             # AI analysis
-            ai_analyze(action.params, form_data)
+            ai_analyze(safe_params, form_data)
             workflow_results["ai_analyze"] = {"success": True}
 
         elif action.action == "complete_task":
             # Complete the task linked to this form
             # Check if previous actions (especially save_to_table) succeeded
-            require_previous_success = action.params.get("require_previous_success", True)
+            require_previous_success = safe_params.get("require_previous_success", True)
             
             if require_previous_success:
                 save_result = workflow_results.get("save_to_table", {})
                 if not save_result.get("success"):
-                    logger.warning("⚠️ Skipping task completion - data save failed or not executed")
+                    logger.warning("[WARNING] Skipping task completion - data save failed or not executed")
                     workflow_results["complete_task"] = {
                         "success": False,
                         "skipped": True,
@@ -737,7 +794,12 @@ def save_to_table(
             
             # Handle literal values (enclosed in quotes)
             if isinstance(form_field, str) and form_field.startswith("'") and form_field.endswith("'"):
-                values.append(form_field.strip("'"))
+                literal_value = form_field.strip("'")
+                # Convert special date keywords
+                if literal_value.lower() == 'today':
+                    values.append(datetime.now())
+                else:
+                    values.append(literal_value)
             else:
                 # Get value from form data
                 values.append(form_data.get(form_field))
@@ -796,7 +858,7 @@ def save_to_table(
             if not verified:
                 logger.warning(f"Could not verify insertion for table {table_name}, ID {inserted_id}")
         
-        logger.info(f"✅ Successfully saved to {table_name}" + (f", ID: {inserted_id}" if inserted_id else ""))
+        logger.info(f"[SUCCESS] Successfully saved to {table_name}" + (f", ID: {inserted_id}" if inserted_id else ""))
         
         return {
             "success": True,
@@ -807,7 +869,7 @@ def save_to_table(
     except Exception as e:
         db.rollback()
         error_msg = str(e)
-        logger.error(f"❌ Error saving to table {table_name}: {error_msg}")
+        logger.error(f"[ERROR] Error saving to table {table_name}: {error_msg}")
         
         return {
             "success": False,

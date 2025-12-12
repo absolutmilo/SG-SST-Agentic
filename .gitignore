@@ -69,7 +69,17 @@ Thumbs.db
 estructura_carpetas.json
 tree.py
  
- BD/InsertRoles.sql
+BD/InsertRoles.sql
 find_constraints.py
 BD/InsertData_GapExamples.sql
 BD/InsertRoles.sql
+BD/DOCUMENTO.sql
+BD/update_documento_schema.sql
+BD/check_audit_table.sql
+BD/fix_audit_trigger.sql
+
+# Comercial
+Application Development Proposal.pdf
+
+# Documents
+\backend\backend

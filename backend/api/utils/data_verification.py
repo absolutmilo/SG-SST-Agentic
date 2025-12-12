@@ -78,7 +78,8 @@ def verify_data_insertion(
 def save_verification_audit(
     db: Session,
     submission_id: int,
-    verification_results: Dict[str, Any]
+    verification_results: Dict[str, Any],
+    user_id: int
 ) -> None:
     """
     Save verification results to audit table
@@ -89,13 +90,17 @@ def save_verification_audit(
             audit_sql = text("""
                 INSERT INTO FORM_SUBMISSION_AUDIT (
                     id_submission,
-                    action_type,
-                    action_details,
-                    timestamp
+                    action,
+                    field_changed,
+                    new_value,
+                    changed_by,
+                    changed_at
                 ) VALUES (
                     :submission_id,
                     'data_verification',
+                    'verification_status',
                     :details,
+                    :user_id,
                     GETDATE()
                 )
             """)
@@ -103,7 +108,8 @@ def save_verification_audit(
             details = f"Verified: {table_info['table']} ID {table_info['id']}"
             db.execute(audit_sql, {
                 "submission_id": submission_id,
-                "details": details
+                "details": details,
+                "user_id": user_id
             })
         
         # Log errors if any
@@ -111,13 +117,17 @@ def save_verification_audit(
             audit_sql = text("""
                 INSERT INTO FORM_SUBMISSION_AUDIT (
                     id_submission,
-                    action_type,
-                    action_details,
-                    timestamp
+                    action,
+                    field_changed,
+                    new_value,
+                    changed_by,
+                    changed_at
                 ) VALUES (
                     :submission_id,
                     'verification_error',
+                    'error_details',
                     :details,
+                    :user_id,
                     GETDATE()
                 )
             """)
@@ -125,7 +135,8 @@ def save_verification_audit(
             details = f"Error: {error.get('table', 'unknown')} - {error.get('error', 'unknown error')}"
             db.execute(audit_sql, {
                 "submission_id": submission_id,
-                "details": details
+                "details": details,
+                "user_id": user_id
             })
         
         db.commit()

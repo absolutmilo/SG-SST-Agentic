@@ -129,6 +129,7 @@ export default {
         { name: 'Dashboard', path: '/', icon: 'fas fa-chart-line' },
         { name: 'Tareas', path: '/tasks', icon: 'fas fa-tasks' },
         { name: 'Formularios', path: '/forms', icon: 'fas fa-clipboard-list' },
+        { name: 'Documentos', path: '/documents', icon: 'fas fa-file-contract' },
         { name: 'Reportes', path: '/reports', icon: 'fas fa-file-alt' },
         { name: 'Empleados', path: '/employees', icon: 'fas fa-users' },
         { name: 'Agentes IA', path: '/agentic', icon: 'fas fa-robot' }

@@ -1,0 +1,299 @@
+{
+  "project": "SG-SST Agentic - Lean MVP",
+  "total_hours": 200,
+  "hour_rate_cop": 130000,
+  "total_price_cop": 26000000,
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Kickoff y setup del repo",
+      "hours": 4,
+      "description": "Preparar .env ejemplo, config.toml, scripts de arranque y checklist para sesiones vibe coding.",
+      "acceptance_criteria": "App arranca local (backend + frontend) con comando único.",
+      "labels": ["infra","onboarding"],
+      "priority": "Alta"
+    },
+    {
+      "id": 2,
+      "title": "Corregir errores críticos y logging",
+      "hours": 8,
+      "description": "Arreglar UnicodeEncodeError, estabilizar logs y handlers de excepciones.",
+      "acceptance_criteria": "No hay errores de logging en escenarios básicos; logs legibles.",
+      "labels": ["bug","backend"],
+      "priority": "Alta"
+    },
+    {
+      "id": 3,
+      "title": "Esquema DB mínimo y migraciones básicas",
+      "hours": 12,
+      "description": "Validar script BD, ajustar modelos esenciales y pruebas básicas de migración.",
+      "acceptance_criteria": "Tablas principales creadas y accesibles; migración reproducible.",
+      "labels": ["database","migration"],
+      "priority": "Alta"
+    },
+    {
+      "id": 4,
+      "title": "Text-to-SQL seguro (read-only)",
+      "hours": 26,
+      "description": "Implementar validador que permita solo SELECT, whitelist/blacklist de columnas, timeouts y pruebas de inyección.",
+      "acceptance_criteria": "Consultas generadas pasan el validador; intentos de DML son rechazados.",
+      "labels": ["security","sql","ai"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 5,
+      "title": "Base de herramientas de agentes (normalizar interfaces)",
+      "hours": 14,
+      "description": "Consolidar base_agent.tools, documentar API interna y agregar pruebas unitarias para utilidades.",
+      "acceptance_criteria": "Herramientas reutilizables y testadas; agentes consumen la misma interfaz.",
+      "labels": ["backend","agents"],
+      "priority": "Alta"
+    },
+    {
+      "id": 6,
+      "title": "AssistantAgent — implementación core",
+      "hours": 18,
+      "description": "Flujo de consulta general, gestión de prompts y fallback simple.",
+      "acceptance_criteria": "Responde correctamente a 10 prompts de ejemplo y maneja errores LLM.",
+      "labels": ["agent"],
+      "priority": "Alta"
+    },
+    {
+      "id": 7,
+      "title": "RiskAgent básico + workflow asociado",
+      "hours": 22,
+      "description": "Lógica de identificación de peligros, plantilla de salida y workflow simplificado.",
+      "acceptance_criteria": "Evaluación de riesgo ejecutable end-to-end en staging con datos de ejemplo.",
+      "labels": ["agent","workflow"],
+      "priority": "Alta"
+    },
+    {
+      "id": 8,
+      "title": "RAG minimal (FAISS + ingest básico)",
+      "hours": 16,
+      "description": "Configuración vectorstore local, ingest básico de documentos y búsqueda semántica simple.",
+      "acceptance_criteria": "Queries devuelven contexto relevante en pruebas de ejemplo.",
+      "labels": ["rag","ai"],
+      "priority": "Media-Alta"
+    },
+    {
+      "id": 9,
+      "title": "Orquestador / workflow engine (mínimo)",
+      "hours": 12,
+      "description": "Persistencia básica de estado de workflow, start/status endpoints y retries simples.",
+      "acceptance_criteria": "Iniciar y consultar estado de workflow; logs de pasos.",
+      "labels": ["workflow","backend"],
+      "priority": "Alta"
+    },
+    {
+      "id": 10,
+      "title": "API endpoints críticos y validaciones Pydantic",
+      "hours": 14,
+      "description": "Asegurar /api/agent/run, /api/workflow/start, /api/rag/query con validaciones y OpenAPI.",
+      "acceptance_criteria": "Endpoints documentados en /docs y validaciones pasan casos básicos.",
+      "labels": ["api","validation"],
+      "priority": "Alta"
+    },
+    {
+      "id": 11,
+      "title": "Frontend Agentic Console (mínimo funcional)",
+      "hours": 18,
+      "description": "Pantalla principal, selector de agentes, input de consulta y tabla de resultados.",
+      "acceptance_criteria": "Usuario puede ejecutar Assistant y Risk y ver resultados.",
+      "labels": ["frontend","ui"],
+      "priority": "Alta"
+    },
+    {
+      "id": 12,
+      "title": "Autenticación y RBAC básica",
+      "hours": 10,
+      "description": "Login simple (JWT), roles básicos (CEO, Coordinador, Auditor) y protección de rutas.",
+      "acceptance_criteria": "Usuarios con roles diferentes ven/ejecutan solo lo permitido.",
+      "labels": ["auth","security"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 13,
+      "title": "Tests mínimos (unit + integración críticos)",
+      "hours": 7,
+      "description": "Pytest para endpoints críticos y tests frontend smoke.",
+      "acceptance_criteria": "CI local pasa pruebas esenciales.",
+      "labels": ["test","ci"],
+      "priority": "Alta"
+    },
+    {
+      "id": 14,
+      "title": "CI/CD y Docker Compose (simplificado)",
+      "hours": 5,
+      "description": "Pipeline simple para build/test y docker-compose reproducible para staging.",
+      "acceptance_criteria": "Imágenes se construyen y docker-compose up levanta servicios.",
+      "labels": ["ci/cd","infra"],
+      "priority": "Media"
+    },
+    {
+      "id": 15,
+      "title": "Documentación técnica mínima y runbooks",
+      "hours": 6,
+      "description": "Actualizar README principal, DEPLOYMENT.md y runbook básico de recuperación.",
+      "acceptance_criteria": "Operador puede desplegar en staging siguiendo la documentación.",
+      "labels": ["docs","ops"],
+      "priority": "Media"
+    },
+    {
+      "id": 16,
+      "title": "Revisión PRs asíncrona y automatización mínima de calidad",
+      "hours": 8,
+      "description": "Crear plantilla de checklist para PRs, definir owner de revisión y configurar checks CI (lint + tests) mínimos para permitir 'merge on green'. Evita sesiones en vivo con el cliente.",
+      "acceptance_criteria": "PRs se revisan asíncronamente usando la plantilla; CI bloquea merges si checks fallan; merges automáticos habilitados cuando los checks pasan.",
+      "labels": ["process","automation","ci"],
+      "priority": "Continua"
+    }
+  ]
+}
+
+
+//FULL TASK LIST
+
+{
+  "project": "SG-SST Agentic - Full (tareas restantes)",
+  "remaining_hours": 254,
+  "hour_rate_cop": 130000,
+  "remaining_price_cop": 33020000,
+  "tasks": [
+    {
+      "id": 17,
+      "title": "DocumentAgent — upgrade completo",
+      "hours": 22,
+      "description": "Mejorar parsing, OCR, extracción de metadatos, manejo de PDF/Word y plantillas de normalización; pruebas con corpus real.",
+      "acceptance_criteria": "Documentos ingestados correctamente; extracción de texto y metadatos ≥ 90% en tests de muestra.",
+      "labels": ["agent","ingest","nlp"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 18,
+      "title": "EmailAgent — integración y plantillas avanzadas",
+      "hours": 8,
+      "description": "Plantillas por rol, renderizado dinámico, integración SMTP/SendGrid y modo dry-run con logs de envíos.",
+      "acceptance_criteria": "Envío simulado y real probado; plantillas personalizables desde UI.",
+      "labels": ["agent","integrations","email"],
+      "priority": "Media"
+    },
+    {
+      "id": 19,
+      "title": "RAG pipeline — escalado y persistencia FAISS",
+      "hours": 32,
+      "description": "Batch embeddings, persistencia y reindexado FAISS, manejo incremental, tests de relevancia y latencia.",
+      "acceptance_criteria": "Reindexado sin pérdida; búsquedas semánticas relevantes y latencia aceptable en dataset de prueba.",
+      "labels": ["rag","ai","infra"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 20,
+      "title": "Orquestador/workflow — features avanzadas",
+      "hours": 26,
+      "description": "Soporte para pasos paralelos, compensaciones, retries configurables y persistencia de estado extendida.",
+      "acceptance_criteria": "Workflows complejos ejecutables y recuperables tras fallos; auditoría de pasos.",
+      "labels": ["workflow","backend","orchestrator"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 21,
+      "title": "Integración y pruebas de agentes (hardening)",
+      "hours": 18,
+      "description": "Testeo end-to-end de agentes, estandarizar interfaces, manejo de errores y retries en herramientas comunes.",
+      "acceptance_criteria": "Agentes interoperan sin fallo en 10 escenarios E2E; herramientas compartidas validadas.",
+      "labels": ["agents","test","backend"],
+      "priority": "Alta"
+    },
+    {
+      "id": 22,
+      "title": "Frontend — dashboards, reportes y vistas por rol",
+      "hours": 32,
+      "description": "Implementar paneles, export CSV/PDF, vistas diferenciadas por rol y mejoras UX para formularios complejos.",
+      "acceptance_criteria": "Dashboards funcionales con filtros; exportes probados; roles ven UI adecuada.",
+      "labels": ["frontend","ui","reports"],
+      "priority": "Alta"
+    },
+    {
+      "id": 23,
+      "title": "Auth & RBAC avanzado (audit logs)",
+      "hours": 14,
+      "description": "Registro de auditoría de acciones, trazabilidad por usuario, hooks para SSO (opcional) y revisión de permisos finos.",
+      "acceptance_criteria": "Auditoría activa; roles y permisos verificados en 20 casos de prueba.",
+      "labels": ["security","auth","compliance"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 24,
+      "title": "Tests extendidos: E2E, performance y carga",
+      "hours": 22,
+      "description": "Cobertura E2E para flujos críticos, pruebas de carga básicas (RAG, workflows) y scripts reproducibles.",
+      "acceptance_criteria": "E2E pass en CI; benchmarks básicos de carga documentados.",
+      "labels": ["test","e2e","perf"],
+      "priority": "Alta"
+    },
+    {
+      "id": 25,
+      "title": "CI/CD producción y scripts de infra",
+      "hours": 16,
+      "description": "Pipelines para build/test/deploy, despliegue reproducible en staging/production, scripts IaC básicos (scripts/Ansible/compose).",
+      "acceptance_criteria": "Despliegue automatizado a staging; rollback documentado.",
+      "labels": ["ci/cd","infra","deploy"],
+      "priority": "Alta"
+    },
+    {
+      "id": 26,
+      "title": "Revisión de seguridad y hardening",
+      "hours": 14,
+      "description": "Scan de dependencias, mitigaciones de prompt injection, revisión de secrets y recomendaciones de seguridad.",
+      "acceptance_criteria": "Checklist de seguridad completado; vulnerabilidades críticas mitigadas.",
+      "labels": ["security","audit"],
+      "priority": "Muy Alta"
+    },
+    {
+      "id": 27,
+      "title": "Performance tuning y observabilidad",
+      "hours": 16,
+      "description": "Caching estratégico, límites de concurrencia, health checks, métricas y dashboards (Prometheus/Grafana o similar).",
+      "acceptance_criteria": "Métricas capturadas; alertas básicas configuradas; mejora de latencias medible.",
+      "labels": ["perf","monitoring","ops"],
+      "priority": "Media"
+    },
+    {
+      "id": 28,
+      "title": "Base de datos: optimizaciones y procedimientos",
+      "hours": 10,
+      "description": "Optimizar consultas críticas, añadir índices, pruebas de migraciones complejas y stored procedures necesarios.",
+      "acceptance_criteria": "Consultas críticas optimizadas; migraciones testadas en staging.",
+      "labels": ["database","sql","perf"],
+      "priority": "Alta"
+    },
+    {
+      "id": 29,
+      "title": "Documentación completa, formación y handover",
+      "hours": 8,
+      "description": "Manuales operativos avanzados, guías de usuario por rol y sesión de transferencia/entrenamiento al equipo del cliente.",
+      "acceptance_criteria": "Entrega de documentación y sesión de handover realizadas; feedback del cliente registrado.",
+      "labels": ["docs","training","handover"],
+      "priority": "Media"
+    },
+    {
+      "id": 30,
+      "title": "Licencias, legal y verificación de cumplimiento final",
+      "hours": 8,
+      "description": "Revisión final de mapeo legal, condiciones de licencia acordadas y checklist de cumplimiento para entrega.",
+      "acceptance_criteria": "Checklist legal completado; cláusulas de licencia aplicadas según acuerdo.",
+      "labels": ["legal","compliance","license"],
+      "priority": "Alta"
+    },
+    {
+      "id": 31,
+      "title": "Buffer y gestión de proyecto (full)",
+      "hours": 8,
+      "description": "Coordinación, revisiones, sesiones vibe coding adicionales y contingencia para imprevistos.",
+      "acceptance_criteria": "Sesiones agendadas; reporte de gestión semanal entregado.",
+      "labels": ["pm","buffer","process"],
+      "priority": "Continua"
+    }
+  ]
+}
