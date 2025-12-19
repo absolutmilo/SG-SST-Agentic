@@ -10,38 +10,45 @@
         :id="field.id"
         type="file"
         @change="handleFileChange"
-        :required="field.required"
-        :disabled="field.disabled"
+        :required="field.required && !modelValue" 
+        :disabled="field.disabled || uploading"
         :accept="acceptedTypes"
         class="file-input"
         ref="fileInput"
       />
       
-      <label :for="field.id" class="file-upload-label">
-        <div class="upload-icon">📁</div>
+      <label :for="field.id" class="file-upload-label" :class="{ 'uploading': uploading }">
+        <div class="upload-icon">
+             <span v-if="uploading">⏳</span>
+             <span v-else>📁</span>
+        </div>
         <div class="upload-text">
-          <span v-if="!fileName">Click para seleccionar archivo</span>
-          <span v-else class="file-name">{{ fileName }}</span>
+          <span v-if="uploading">Subiendo archivo...</span>
+          <span v-else-if="!fileName && !modelValue">Click para seleccionar archivo</span>
+          <span v-else class="file-name">{{ fileName || (typeof modelValue === 'string' ? 'Archivo Adjunto' : '') }}</span>
         </div>
       </label>
       
       <button
-        v-if="fileName"
+        v-if="fileName || modelValue"
         @click="clearFile"
         type="button"
         class="clear-file-btn"
+        :disabled="uploading"
       >
         ✕ Eliminar
       </button>
     </div>
     
     <p v-if="field.help_text" class="help-text">{{ field.help_text }}</p>
+    <p v-if="uploadError" class="error-text">{{ uploadError }}</p>
     <p v-if="error" class="error-text">{{ error }}</p>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import api from '../../../services/api'
 
 const props = defineProps({
   field: {
@@ -49,7 +56,7 @@ const props = defineProps({
     required: true
   },
   modelValue: {
-    type: [File, String],
+    type: [File, String, Object], // File during select, String after upload
     default: null
   },
   error: {
@@ -62,6 +69,8 @@ const emit = defineEmits(['update', 'blur'])
 
 const fileInput = ref(null)
 const fileName = ref('')
+const uploading = ref(false)
+const uploadError = ref('')
 
 const acceptedTypes = computed(() => {
   if (props.field.allowed_file_types) {
@@ -70,16 +79,53 @@ const acceptedTypes = computed(() => {
   return '*'
 })
 
-const handleFileChange = (event) => {
+const handleFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
     fileName.value = file.name
-    emit('update', file)
+    uploading.value = true
+    uploadError.value = ''
+    
+    try {
+      // Create FormData
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('nombre', file.name)
+      formData.append('tipo', 'SoporteFormulario')
+      formData.append('categoria', props.field.category || 'formularios')
+      formData.append('descripcion', `Soporte para campo ${props.field.label}`)
+
+      console.log('Uploading file...', file.name)
+
+      // Upload to backend
+      const response = await api.post('/documents/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      console.log('Upload success:', response.data)
+      
+      // Emit the file path (or ID) returned by backend
+      // Assuming response.data contains the document record
+      // We'll use RutaArchivo relative path
+      const filePath = response.data.RutaArchivo || response.data.path
+      
+      emit('update', filePath) // Emit string path
+      
+    } catch (err) {
+      console.error('Upload failed:', err)
+      uploadError.value = 'Error al subir archivo. Intente nuevamente.'
+      emit('update', null)
+    } finally {
+      uploading.value = false
+    }
   }
 }
 
 const clearFile = () => {
   fileName.value = ''
+  uploadError.value = ''
   if (fileInput.value) {
     fileInput.value.value = ''
   }

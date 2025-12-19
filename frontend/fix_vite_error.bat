@@ -1,42 +1,28 @@
 @echo off
-title Reparador de Entorno Frontend (SGSST)
-color 0e
+echo ===========================================
+echo   LIMPIEZA PROFUNDA DE VITE (PowerShell)
+echo ===========================================
 
-echo ===================================================
-echo   HERRAMIENTA DE REPARACION AUTOMATICA - FRONTEND
-echo ===================================================
-echo.
-echo 1. Deteniendo procesos de Node.js que puedan bloquear archivos...
+:: 1. Matar procesos de Node agresivamente
 taskkill /F /IM node.exe /T 2>nul
-echo.
 
-echo 2. Eliminando carpeta node_modules (esto puede tardar)...
-if exist node_modules (
-    rmdir /s /q node_modules
-    echo    - node_modules eliminado.
-) else (
-    echo    - node_modules no existia.
-)
+:: 2. Usar PowerShell para forzar el borrado (mucho mas potente que rmdir)
+powershell -Command "Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue"
+powershell -Command "Remove-Item -Recurse -Force package-lock.json -ErrorAction SilentlyContinue"
 
-echo 3. Eliminando package-lock.json...
-if exist package-lock.json (
-    del /f /q package-lock.json
-    echo    - package-lock.json eliminado.
-)
+:: 3. Limpiar cache especifica de npm
+call npm cache clean --force
 
-echo 4. Limpiando cache de npm...
-call npm cache clean --force >nul 2>&1
+:: 4. Reistalar ESBUILD especificamente primero (el truco clave)
+echo Instalando esbuild manualmente para asegurar el binario...
+call npm install esbuild@0.21.5 --save-dev --save-exact
 
-echo.
-echo 5. Reinstalando dependencias limpias...
-echo    (Por favor espera, esto descarga los archivos necesarios)
+:: 5. Instalar el resto
+echo Instalando resto de dependencias...
 call npm install
 
 echo.
-echo ===================================================
-echo   REPARACION COMPLETADA
-echo ===================================================
-echo.
-echo Ya puedes ejecutar 'npm run dev' nuevamente.
-echo.
+echo ===========================================
+echo   LISTO. Intenta 'npm run dev'
+echo ===========================================
 pause

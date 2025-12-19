@@ -574,7 +574,17 @@ def get_enfermedad_laboral_form() -> SmartFormDefinition:
         on_submit=[
             WorkflowAction(
                 action="save_to_table",
-                params={"table": "EVENTO"},
+                params={
+                    "table": "EVENTO",
+                    "mapping": {
+                        "id_empleado": "id_empleado",
+                        "Fecha_Evento": "fecha_diagnostico",
+                        "Descripcion_Evento": "diagnostico", # Mapping diagnosis to description
+                        "Tipo_Evento": "'Enfermedad Laboral'",
+                        "Causas_Basicas": "sintomas", # Mapping symptoms to basic causes (closest fit)
+                        # We might need a dedicated table for Enfermedad Laboral if fields don't fit
+                    }
+                },
                 order=1
             ),
             WorkflowAction(
@@ -781,7 +791,16 @@ def get_autoevaluacion_form() -> SmartFormDefinition:
         on_submit=[
             WorkflowAction(
                 action="save_to_table",
-                params={"table": "RESULTADO_INDICADOR"},
+                params={
+                    "table": "AUTOEVALUACION_ESTANDAR", 
+                    "mapping": {
+                        "Fecha_Evaluacion": "fecha_evaluacion",
+                        "Responsable": "evaluador",
+                        "Estado": "'Realizada'"
+                        # Note: Simple header mapping. 
+                        # Detail rows usually handled by custom logic or different endoint.
+                    }
+                },
                 order=1
             ),
             WorkflowAction(
@@ -908,8 +927,11 @@ def get_examen_medico_form() -> SmartFormDefinition:
                 order=1
             ),
             WorkflowAction(
-                action="complete_task",
-                params={},
+                action="complete_task", 
+                params={
+                    "task_id": "examen_medico",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
                 order=2
             ),
         ],
@@ -956,7 +978,14 @@ def get_inspeccion_extintor_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "inspeccion_extintor",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -990,7 +1019,14 @@ def get_inspeccion_botiquin_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "inspeccion_botiquin",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1026,7 +1062,14 @@ def get_inspeccion_locativa_form() -> SmartFormDefinition:
                 }, 
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "inspeccion_locativa",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1065,7 +1108,14 @@ def get_registro_capacitacion_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "capacitacion_registrada",
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1091,8 +1141,30 @@ def get_permiso_alturas_form() -> SmartFormDefinition:
             FormField(id="autorizado_por", name="autorizador", label="Autorizado Por", type=FieldType.TEXT, required=True, order=5)
         ],
         on_submit=[
-            WorkflowAction(action="save_to_table", params={"table": "PERMISO_ALTURAS"}, order=1),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="save_to_table", 
+                params={
+                    "table": "PERMISO_ALTURAS",
+                    "mapping": {
+                        "id_empleado": "trabajador",
+                        "Altura_Aprox": "altura_aprox",
+                        "Equipos_Proteccion": "equipos_proteccion", # Will be JSON/String
+                        "Puntos_Anclaje_Verificados": "puntos_anclaje",
+                        "Autorizado_Por": "autorizado_por",
+                        "Fecha_Permiso": "'today'",
+                        "Estado": "'Activo'"
+                    }
+                }, 
+                order=1
+            ),
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "permiso_alturas",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1132,7 +1204,14 @@ def get_accion_correctiva_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "accion_correctiva",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1172,7 +1251,14 @@ def get_registro_mantenimiento_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "mantenimiento_equipo",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1209,7 +1295,14 @@ def get_evaluacion_riesgo_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "evaluacion_riesgo",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )
 
@@ -1251,6 +1344,13 @@ def get_acta_reunion_form() -> SmartFormDefinition:
                 },
                 order=1
             ),
-            WorkflowAction(action="complete_task", params={}, order=2)
+            WorkflowAction(
+                action="complete_task", 
+                params={
+                    "task_id": "acta_reunion",  # Cambia según el formulario
+                    "status": "completed"
+                }, 
+                order=2
+            )
         ]
     )

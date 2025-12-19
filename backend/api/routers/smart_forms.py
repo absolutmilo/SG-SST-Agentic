@@ -721,7 +721,7 @@ def execute_workflow_action(
                     }
                     return
             
-            complete_task_action(db, context, current_user)
+            complete_task_action(db, context, current_user, safe_params)
             workflow_results["complete_task"] = {"success": True}
         
     except Exception as e:
@@ -937,8 +937,19 @@ def create_task_from_form(
                         fecha_vencimiento = datetime.now() + timedelta(weeks=amount)
         
         if not fecha_vencimiento:
-            # Default to 7 days from now
-            fecha_vencimiento = datetime.now() + timedelta(days=7)
+            if "due_date" in params and params["due_date"] == "calculated_from_vida_util":
+                # Special logic for EPP
+                vida_util = form_data.get("vida_util") or form_data.get("vida_util_meses")
+                if vida_util:
+                    try:
+                        meses = int(vida_util)
+                        fecha_vencimiento = datetime.now() + timedelta(days=meses*30)
+                    except ValueError:
+                        pass # Fallback to default
+            
+            if not fecha_vencimiento:
+                # Default to 7 days from now
+                fecha_vencimiento = datetime.now() + timedelta(days=7)
         
         # Format date for SQL Server
         if isinstance(fecha_vencimiento, str):
@@ -1063,12 +1074,20 @@ def ai_analyze(params: Dict[str, Any], form_data: Dict[str, Any]):
         logger.error(f"Error in AI analysis: {e}")
 
 
-def complete_task_action(db: Session, context: Dict[str, Any], current_user: AuthorizedUser):
+def complete_task_action(db: Session, context: Dict[str, Any], current_user: AuthorizedUser, params: Dict[str, Any] = None):
     """Complete the task that launched this form"""
     try:
-        task_id = context.get("taskId")
+        # 1. Try to get task ID from context (frontend pass-through)
+        task_id = None
+        if context and isinstance(context, dict):
+            task_id = context.get("taskId")
+        
+        # 2. Fallback: Try to get from params (hardcoded in form definition)
+        if not task_id and params:
+            task_id = params.get("task_id")
+            
         if not task_id:
-            logger.warning("No taskId in context, cannot complete task")
+            logger.warning("[complete_task] No taskId found in context or params, cannot complete task")
             return
 
         # Find task
@@ -1076,7 +1095,7 @@ def complete_task_action(db: Session, context: Dict[str, Any], current_user: Aut
         task = db.query(Tarea).filter(Tarea.id_tarea == task_id).first()
         
         if not task:
-            logger.warning(f"Task {task_id} not found")
+            logger.warning(f"[complete_task] Task {task_id} not found")
             return
             
         # Update status
@@ -1090,8 +1109,8 @@ def complete_task_action(db: Session, context: Dict[str, Any], current_user: Aut
             task.id_empleado_cierre = emp.id_empleado
             
         db.commit()
-        logger.info(f"Task {task_id} completed successfully via form submission")
+        logger.info(f"[complete_task] Task {task_id} completed successfully via form submission")
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error completing task: {e}")
+        logger.error(f"[complete_task] Error completing task: {e}")
