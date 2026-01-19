@@ -10,11 +10,17 @@ import bcrypt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         pwd_bytes = plain_password.encode('utf-8')
         hash_bytes = hashed_password.encode('utf-8')
-        return bcrypt.checkpw(pwd_bytes, hash_bytes)
-    except Exception:
+        result = bcrypt.checkpw(pwd_bytes, hash_bytes)
+        logger.debug(f"Password verification: hash starts with {hashed_password[:7]}, result={result}")
+        return result
+    except Exception as e:
+        logger.error(f"Password verification error: {type(e).__name__}: {str(e)}")
         return False
 
 def get_password_hash(password: str) -> str:

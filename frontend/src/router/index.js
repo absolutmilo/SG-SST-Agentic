@@ -8,6 +8,7 @@ import Employees from '../views/Employees.vue'
 import Assistant from '../views/Assistant.vue'
 import Forms from '../views/Forms.vue'
 import Documents from '../views/Documents.vue'
+import Users from '../views/Users.vue'
 import AgenticConsole from '../views/AgenticConsole.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 
@@ -64,6 +65,11 @@ const router = createRouter({
                     path: 'documents',
                     name: 'documents',
                     component: Documents
+                },
+                {
+                    path: 'users',
+                    name: 'users',
+                    component: Users
                 },
                 {
                     path: 'agentic',

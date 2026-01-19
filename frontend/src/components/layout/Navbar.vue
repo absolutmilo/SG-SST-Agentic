@@ -125,13 +125,14 @@ export default {
     return {
       showNotifications: false,
       showUserMenu: false,
-      navItems: [
+      rawNavItems: [
         { name: 'Dashboard', path: '/', icon: 'fas fa-chart-line' },
         { name: 'Tareas', path: '/tasks', icon: 'fas fa-tasks' },
         { name: 'Formularios', path: '/forms', icon: 'fas fa-clipboard-list' },
         { name: 'Documentos', path: '/documents', icon: 'fas fa-file-contract' },
-        { name: 'Reportes', path: '/reports', icon: 'fas fa-file-alt' },
-        { name: 'Empleados', path: '/employees', icon: 'fas fa-users' },
+        //{ name: 'Reportes', path: '/reports', icon: 'fas fa-file-alt' },
+        //{ name: 'Empleados', path: '/employees', icon: 'fas fa-users' },0
+        { name: 'Usuarios', path: '/users', icon: 'fas fa-user-cog', adminOnly: true },
         { name: 'Agentes IA', path: '/agentic', icon: 'fas fa-robot' }
       ],
       notifications: [
@@ -160,6 +161,30 @@ export default {
     }
   },
   computed: {
+    navItems() {
+       return this.rawNavItems.filter(item => {
+           if (!item.adminOnly) return true;
+           
+           // Check if admin
+           // Ideally we should decode the token, but for UI hiding we can check localStorage 'user' 
+           // or decode here. Let's try simple check on 'user' prop or role if stored.
+           // However, 'user' prop passed to Navbar is usually just {name: ...}.
+           // Let's check the token payload directly as it's the source of truth if available.
+           
+           const token = localStorage.getItem('token');
+           if (!token) return false;
+           
+           try {
+               const payload = JSON.parse(atob(token.split('.')[1]));
+               // Backend returns role name in 'role' claim or similar. 
+               // In update auth.py we ensured "role" claim has the role name.
+               const role = payload.role || '';
+               return ['CEO', 'Coordinador SST', 'Gerente General'].includes(role);
+           } catch (e) {
+               return false;
+           }
+       });
+    },
     unreadCount() {
       return this.notifications.filter(n => !n.read).length
     },

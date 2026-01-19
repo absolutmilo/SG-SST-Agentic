@@ -6,6 +6,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "dev:clean": "powershell -ExecutionPolicy Bypass -File ./clean_start.ps1",
+        "stop": "taskkill /F /IM node.exe /T",
         "build": "vite build",
         "preview": "vite preview",
         "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
@@ -26,7 +28,7 @@
     "devDependencies": {
         "@vitejs/plugin-vue": "^5.0.0",
         "@vue/eslint-config-prettier": "^9.0.0",
-        "esbuild": "^0.21.5",
+        "esbuild": "0.21.5",
         "eslint": "^8.56.0",
         "eslint-plugin-vue": "^9.19.2",
         "prettier": "^3.1.1",

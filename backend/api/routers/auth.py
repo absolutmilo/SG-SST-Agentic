@@ -29,21 +29,58 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db)
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     user = db.query(AuthorizedUser).filter(AuthorizedUser.Correo_Electronico == form_data.username).first()
     
-    if not user or not user.Password_Hash or not verify_password(form_data.password, user.Password_Hash):
+    # Debug logging
+    if not user:
+        logger.warning(f"Login attempt failed: User not found - {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not user.Password_Hash:
+        logger.warning(f"Login attempt failed: No password hash for user - {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    logger.info(f"User found: {form_data.username}, Hash length: {len(user.Password_Hash)}, Hash prefix: {user.Password_Hash[:10] if len(user.Password_Hash) >= 10 else user.Password_Hash}")
+    
+    password_valid = verify_password(form_data.password, user.Password_Hash)
+    logger.info(f"Password verification result for {form_data.username}: {password_valid}")
+    
+    if not password_valid:
+        logger.warning(f"Login attempt failed: Invalid password for user - {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
         
+    # Determine Role Name for token
+    role_name = user.Nivel_Acceso # Default fallback
+    if user.id_rol:
+        from api.models import Role
+        # We need to query this inside the session
+        # Note: 'user' is already attached to 'db' session from the query above
+        db_role = db.query(Role).filter(Role.id_rol == user.id_rol).first()
+        if db_role:
+            role_name = db_role.NombreRol
+            
     access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
     access_token = create_access_token(
-        data={"sub": user.Correo_Electronico, "role": user.Nivel_Acceso},
+        data={"sub": user.Correo_Electronico, "role": role_name},
         expires_delta=access_token_expires
     )
     
+    logger.info(f"Login successful for user: {form_data.username} with role: {role_name}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=User)

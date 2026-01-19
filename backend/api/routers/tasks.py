@@ -245,8 +245,22 @@ def update_task_status(
         task, emp = result
         
         # Verify user has permission (is assigned to task or is admin)
+        # Verify user has permission (is assigned to task or is admin)
         is_assigned = (emp.Correo == current_user.Correo_Electronico)
-        is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
+        
+        # Check Admin Role from DB
+        is_admin = False
+        if current_user.id_rol:
+            from api.models import Role # lazy import
+            user_role = db.query(Role).filter(Role.id_rol == current_user.id_rol).first()
+            if user_role:
+                 # Check against allowed admin role names
+                 # Admin roles: CEO, Coordinador SST, Gerente General
+                 is_admin = user_role.NombreRol in ['CEO', 'Coordinador SST', 'Gerente General']
+        
+        # Fallback to legacy
+        if not is_admin and not current_user.id_rol:
+             is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
         
         if not (is_assigned or is_admin):
             raise HTTPException(status_code=403, detail="Not authorized to update this task")
@@ -327,7 +341,17 @@ def assign_task(
     """
     try:
         # Verify admin permission
-        if current_user.Nivel_Acceso not in ['CEO', 'Coordinador SST']:
+        # Verify admin permission
+        is_admin = False
+        if current_user.id_rol:
+             # Lazy check for now, can be optimized with a helper
+             from api.models import Role
+             name = db.query(Role.NombreRol).filter(Role.id_rol == current_user.id_rol).scalar()
+             is_admin = name in ['CEO', 'Coordinador SST']
+        else:
+             is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
+
+        if not is_admin:
             raise HTTPException(status_code=403, detail="Only admins can assign tasks")
         
         Tarea = get_tarea_model()
@@ -398,7 +422,16 @@ def get_all_tasks(
     """
     try:
         # Verify admin permission
-        if current_user.Nivel_Acceso not in ['CEO', 'Coordinador SST']:
+        # Verify admin permission
+        is_admin = False
+        if current_user.id_rol:
+             from api.models import Role
+             name = db.query(Role.NombreRol).filter(Role.id_rol == current_user.id_rol).scalar()
+             is_admin = name in ['CEO', 'Coordinador SST']
+        else:
+             is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
+
+        if not is_admin:
             raise HTTPException(status_code=403, detail="Only admins can view all tasks")
         
         Tarea = get_tarea_model()
@@ -459,7 +492,16 @@ def get_assignable_users(
     """
     try:
         # Verify admin permission
-        if current_user.Nivel_Acceso not in ['CEO', 'Coordinador SST']:
+        # Verify admin permission
+        is_admin = False
+        if current_user.id_rol:
+             from api.models import Role
+             name = db.query(Role.NombreRol).filter(Role.id_rol == current_user.id_rol).scalar()
+             is_admin = name in ['CEO', 'Coordinador SST']
+        else:
+             is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
+
+        if not is_admin:
             raise HTTPException(status_code=403, detail="Only admins can view users")
         
         Empleado = get_empleado_model()
@@ -506,7 +548,16 @@ def create_task(
     """
     try:
         # Verify admin permission
-        if current_user.Nivel_Acceso not in ['CEO', 'Coordinador SST']:
+        # Verify admin permission
+        is_admin = False
+        if current_user.id_rol:
+             from api.models import Role
+             name = db.query(Role.NombreRol).filter(Role.id_rol == current_user.id_rol).scalar()
+             is_admin = name in ['CEO', 'Coordinador SST']
+        else:
+             is_admin = current_user.Nivel_Acceso in ['CEO', 'Coordinador SST']
+
+        if not is_admin:
             raise HTTPException(status_code=403, detail="Only admins can create tasks")
         
         Tarea = get_tarea_model()
